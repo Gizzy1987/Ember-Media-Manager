@@ -1,92 +1,140 @@
 # Ember Media Manager for Jellyfin
 
-> **This is a private fork.** This repository is a private fork of [DanCooper/Ember-MM-Newscraper](https://github.com/DanCooper/Ember-MM-Newscraper), the official home of Ember Media Manager. All credit for the application itself goes to **DanCooper and the Ember team**.
+> **Dies ist ein Fork.** Dieses Repository ist ein Fork von
+> [martin-stromberg/Ember-Media-Manager](https://github.com/martin-stromberg/Ember-Media-Manager),
+> das seinerseits auf [DanCooper/Ember-MM-Newscraper](https://github.com/DanCooper/Ember-MM-Newscraper)
+> — dem offiziellen Zuhause von Ember Media Manager — basiert.
 >
-> This fork serves **my own purposes and requirements** only (e.g. CI/CD infrastructure experiments). Nothing done here is affiliated with, endorsed by, or coordinated with the Ember team in any way, and this fork makes no claim to replace or supersede the original project. If you are looking for Ember Media Manager, please use the upstream repository.
+> **Das gesamte Verdienst an der Anwendung selbst gebührt Dan Cooper und dem Ember-Team.**
+> Ember Media Manager wurde von **Dan Cooper** und dem **Ember-Team** entwickelt und steht unter
+> der GNU General Public License v3. Dieses Repository enthält den **Quellcode** dieses Projekts
+> mit einer auf Jellyfin zugeschnittenen Anpassung; ohne die Arbeit des Ember-Teams gäbe es
+> diese Anwendung nicht.
 >
-> This fork is the **Jellyfin variant** of Ember Media Manager (version 1.12): the Kodi interface has been replaced by a Jellyfin interface, the file and folder layout follows Jellyfin conventions and the user interface language is standard German.
+> Dieser Fork dient **eigenen Zwecken und Anforderungen** (z. B. CI/CD-Infrastruktur,
+> Code-Review und Fehlerbehebung). Er steht in keiner Verbindung zum Ember-Team, wird von ihm
+> weder unterstützt noch mit ihm abgestimmt, und er beansprucht nicht, das Originalprojekt
+> zu ersetzen. Wer Ember Media Manager sucht, sollte das [Originalprojekt](https://github.com/DanCooper/Ember-MM-Newscraper)
+> verwenden.
+>
+> Dieser Fork ist die **Jellyfin-Variante** von Ember Media Manager (Version 1.12): Die
+> Kodi-Schnittstelle wurde durch eine Jellyfin-Schnittstelle ersetzt, Datei- und Ordnerlayout
+> folgen den Jellyfin-Konventionen und die Oberflächensprache ist Standard-German.
 
 [![.NET](https://img.shields.io/badge/.NET-4.8-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
-[![License](https://img.shields.io/github/license/martin-stromberg/Ember-Media-Manager)](EmberMediaManager/License.txt)
-[![Release](https://img.shields.io/github/actions/workflow/status/martin-stromberg/Ember-Media-Manager/release.yml?label=Release)](https://github.com/martin-stromberg/Ember-Media-Manager/actions/workflows/release.yml)
-[![Pre-Release](https://img.shields.io/github/actions/workflow/status/martin-stromberg/Ember-Media-Manager/staging-ci.yml?branch=staging&label=Pre-Release)](https://github.com/martin-stromberg/Ember-Media-Manager/actions/workflows/staging-ci.yml)
+[![License](https://img.shields.io/github/license/Gizzy1987/Ember-Media-Manager)](EmberMediaManager/License.txt)
+[![Release](https://img.shields.io/github/actions/workflow/status/Gizzy1987/Ember-Media-Manager/release.yml?label=Release)](https://github.com/Gizzy1987/Ember-Media-Manager/actions/workflows/release.yml)
+[![Pre-Release](https://img.shields.io/github/actions/workflow/status/Gizzy1987/Ember-Media-Manager/staging-ci.yml?branch=staging&label=Pre-Release)](https://github.com/Gizzy1987/Ember-Media-Manager/actions/workflows/staging-ci.yml)
 
-Ember Media Manager for Jellyfin is a Windows media manager for movies, TV shows and movie sets. It scans media folders into a local library, scrapes metadata, artwork, trailers and themes from online sources and produces Jellyfin-compatible NFO and artwork files. Add-ons provide the Jellyfin interface and Trakt.tv synchronization as well as bulk renaming, exporting and other tools.
+Ember Media Manager for Jellyfin ist ein Windows-Medienmanager für Filme, Serien und Filmsets.
+Er scannt Medienordner in eine lokale Bibliothek, holt Metadaten, Cover, Trailer und Themes aus
+Online-Quellen und erzeugt Jellyfin-kompatible NFO- und Bilddateien. Add-ons liefern die
+Jellyfin-Schnittstelle, die Trakt.tv-Synchronisation sowie Werkzeuge wie Massenumbenennung
+und Export.
 
-## Features
+## Funktionen
 
-- Media library for movies, TV shows/seasons/episodes and movie sets (local SQLite database)
-- Pluggable scrapers — data (IMDb, TMDb, TheTVDB, OMDb, OFDb, Moviepilot, Trakt.tv), images (TMDb, Fanart.tv, TheTVDB), trailers (YouTube, TMDb, Apple, hd-trailers.net, Videobuster) and themes (YouTube, TelevisionTunes)
-- Jellyfin-compatible file layout: NFO files and poster/fanart/banner artwork next to the media
-  - Movie and TV show folders: `Title (Year)`, season folders: `Season 01`
-  - Episode files: `Series - SxxExx - Title`, episode artwork: `<videoname>-thumb.jpg`
-  - Images: `poster.jpg` / `fanart.jpg` / `banner.jpg` (show and season), NFO files: `movie.nfo` / `<videoname>.nfo` / `tvshow.nfo`
-- Jellyfin interface module: manages Jellyfin hosts (name, base URL, API key), tests the connection and triggers a library refresh
-- Trakt.tv module: watched-state/playcount sync, lists and ratings
-- Tools: Bulk Renamer, Movie List Exporter, Media File Manager, Tag Manager, media list/filter editor, mapping editors, video source mapping
-- Multi-profile support, advanced settings, offline media (stub) management
-- Extensible module system: add-on assemblies loaded from the `Modules` directory
+- Medienbibliothek für Filme, Serien/Staffeln/Folgen und Filmsets (lokale SQLite-Datenbank)
+- Austauschbare Scraper — Metadaten (IMDb, TMDb, TheTVDB, OMDb, OFDb, Moviepilot, Trakt.tv),
+  Bilder (TMDb, Fanart.tv, TheTVDB), Trailer (YouTube, TMDb, Apple, hd-trailers.net, Videobuster)
+  und Themes (YouTube, TelevisionTunes)
+- Jellyfin-kompatibles Dateilayout: NFO-Dateien und Poster/Fanart/Banner direkt neben den Medien
+  - Film- und Serienordner: `Titel (Jahr)`, Staffelordner: `Season 01`
+  - Episodendateien: `Serie - SxxExx - Titel`, Episodenbilder: `<videoname>-thumb.jpg`
+  - Bilder: `poster.jpg` / `fanart.jpg` / `banner.jpg` (Serie und Staffel),
+    NFO-Dateien: `movie.nfo` / `<videoname>.nfo` / `tvshow.nfo`
+- Jellyfin-Schnittstellen-Modul: verwaltet Jellyfin-Hosts (Name, Basis-URL, API-Schlüssel),
+  prüft die Verbindung und löst einen Bibliotheks-Refresh aus
+- Trakt.tv-Modul: Abspielstatus-/Playcount-Synchronisation, Listen und Bewertungen
+- Werkzeuge: Bulk Renamer, Movie List Exporter, Media File Manager, Tag Manager,
+  Medienlisten-/Filter-Editor, Zuordnungs-Editoren, Video-Quellen-Zuordnung
+- Mehrere Profile, erweiterte Einstellungen, Verwaltung von Offline-Medien (Stubs)
+- Erweiterbares Modulsystem: Add-on-Assemblies werden aus dem Verzeichnis `Modules` geladen
 
-## Documentation
+## Dokumentation
 
-Feature documentation lives under [`docs/help/`](docs/help/index.md). The change history is tracked in [`changes.log`](changes.log); release notes are in [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md).
+Die Funktionsdokumentation liegt unter [`docs/help/`](docs/help/index.md). Die Änderungshistorie
+wird in [`changes.log`](changes.log) geführt, die Release-Notizen stehen in
+[`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md). Das Ergebnis des Code-Reviews vom
+08.11.2026 mit allen 83 behobenen Befunden und den Performance-Messungen steht in
+[`docs/review/2026-11-08-code-review.md`](docs/review/2026-11-08-code-review.md).
 
 ## Links
-- Upstream project: https://github.com/DanCooper/Ember-MM-Newscraper
 
-## Building
+- Offizielles Upstream-Projekt: https://github.com/DanCooper/Ember-MM-Newscraper
+- Zwischenstand dieses Forks: https://github.com/martin-stromberg/Ember-Media-Manager
 
-Requirements: Windows, Visual Studio (MSBuild), .NET Framework 4.8 runtime.
-A .NET Framework 4.8 Developer Pack is **not** required — the reference
-assemblies are restored via NuGet (`Microsoft.NETFramework.ReferenceAssemblies.net48`)
-and wired in through `Directory.Build.props`.
+## Bauen
 
-1. Restore NuGet packages (packages.config based):
+Voraussetzungen: Windows, Visual Studio (MSBuild), .NET Framework 4.8 Runtime.
+Ein .NET Framework 4.8 Developer Pack wird **nicht** benötigt — die Referenz-Assemblies werden
+über NuGet (`Microsoft.NETFramework.ReferenceAssemblies.net48`) wiederhergestellt und über
+`Directory.Build.props` eingebunden.
+
+1. NuGet-Pakete wiederherstellen (packages.config-basiert):
 
    ```
    .nuget\NuGet.exe restore "Ember Media Manager for Jellyfin.sln"
    ```
 
-2. Build the solution (supported platforms: x86 and x64; `Any CPU` also compiles,
-   but does not ship the native per-platform dependencies):
+2. Solution bauen (unterstützte Plattformen: x86 und x64; `Any CPU` kompiliert ebenfalls,
+   liefert aber nicht die nativen Plattform-Abhängigkeiten aus):
 
    ```
    msbuild "Ember Media Manager for Jellyfin.sln" -p:Configuration=Release -p:Platform=x64
    ```
 
-   The executable is `Ember Media Manager for Jellyfin.exe`. Output lands in `EmberMM - Release - x64` (resp. `... - x86` / `... - AnyCPU`).
+   Die ausführbare Datei ist `Ember Media Manager for Jellyfin.exe`. Die Ausgabe landet in
+   `EmberMM - Release - x64` (bzw. `... - x86` / `... - AnyCPU`).
 
-All projects target .NET Framework 4.8. The `TVDB` library sources are vendored
-under `TheTVDBApi/` (GPL-3.0, originally from `DanCooper/TheTVDBApi`).
+Alle Projekte zielen auf .NET Framework 4.8. Die `TVDB`-Bibliotheksquellen sind unter
+`TheTVDBApi/` eingebunden (GPL-3.0, ursprünglich von `DanCooper/TheTVDBApi`).
 
-## Project structure
+## Projektstruktur
 
-- `EmberMediaManager/` — main WinForms application
-- `EmberAPI/` — core library (database, scanner, module system, NFO, images, media info, settings)
-- `Addons/` — add-on modules (generic tools, Jellyfin/Trakt interfaces, all scrapers)
-- `Trakttv/`, `TheTVDBApi/` — API client libraries
-- `BuildSetup/` — NSIS installer and build scripts
-- `docs/help/` — feature documentation
+- `EmberMediaManager/` — WinForms-Hauptanwendung
+- `EmberAPI/` — Kernbibliothek (Datenbank, Scanner, Modulsystem, NFO, Bilder, Media-Info, Einstellungen)
+- `Addons/` — Add-on-Module (Allgemeinwerkzeuge, Jellyfin-/Trakt-Schnittstellen, alle Scraper)
+- `Trakttv/`, `TheTVDBApi/` — API-Client-Bibliotheken
+- `BuildSetup/` — NSIS-Installer und Build-Skripte
+- `docs/help/` — Funktionsdokumentation
 
 ## Tests
 
-The repository contains a legacy MSTest project (`EmberAPI_Test/`). It is currently **not part of the solution** and does not build — it references a `UnitTests` project that is not in the repository. There are no executable automated tests at the moment.
+Das Repository enthält ein Alt-MSTest-Projekt (`EmberAPI_Test/`). Es ist derzeit **nicht Teil
+der Solution** und baut nicht — es verweist auf ein `UnitTests`-Projekt, das nicht im
+Repository liegt. Es gibt momentan also keine ausführbaren automatisierten Tests.
 
-## Continuous Integration / Git Hooks
+## Kontinuierliche Integration / Git-Hooks
 
-The repository ships two layers of quality gates:
+Das Repository bringt zwei Ebenen von Qualitätssicherungen mit:
 
-- **Local Git hooks** (`.githooks/`): a `pre-commit` hook that checks `.resx` localization consistency, and a `pre-push` hook that mirrors the CI security gate (`nuget restore` + NU190x vulnerability check, blocking). Activate them once per clone:
+- **Lokale Git-Hooks** (`.githooks/`): ein `pre-commit`-Hook, der die `.resx`-Lokalisierung auf
+  Konsistenz prüft, und ein `pre-push`-Hook, der das CI-Sicherheitsgate spiegelt
+  (`nuget restore` + NU190x-Schwachstellenprüfung, blockierend). Einmal pro Clone aktivieren:
 
   ```
   .githooks\install-hooks.cmd    :: Windows
   ./.githooks/install-hooks.sh   # Linux/macOS (Git Bash)
   ```
 
-- **GitHub Actions** (`.github/workflows/`): PRs against `staging` run `PR CI for Staging` (NuGet vulnerability gate + `Debug|x86` and `Release|x64` builds). Pushes to `staging` additionally create `vX.Y.Z-rc.N` pre-releases (`Pre-Release`); a successful run opens a draft promotion PR `staging` → `master` (PRs against `master` are only accepted from `staging`). Pushes to `master` trigger a back-merge PR `master` → `staging` and the `Release` workflow (semantic-release; manual `v*.*.*` tags are also supported). A weekly `Security Scan` runs every Monday 04:00 UTC.
+- **GitHub Actions** (`.github/workflows/`): Pull Requests gegen `staging` laufen als
+  `PR CI for Staging` (NuGet-Schwachstellengate + Builds `Debug|x86` und `Release|x64`).
+  Pushes auf `staging` erzeugen zusätzlich `vX.Y.Z-rc.N`-Pre-Releases (`Pre-Release`); ein
+  erfolgreicher Lauf öffnet einen Entwurf-Promotion-PR `staging` → `master` (PRs gegen `master`
+  werden nur aus `staging` angenommen). Pushes auf `master` lösen einen Back-Merge-PR
+  `master` → `staging` und den `Release`-Workflow aus (semantic-release; manuelle
+  `v*.*.*`-Tags werden ebenfalls unterstützt). Ein wöchentlicher `Security Scan` läuft
+  montags um 04:00 UTC.
 
-The `pre-commit` hook needs Python 3 on `PATH`; the `pre-push` scan runs out of the box on Windows (on Linux/macOS it requires Mono, otherwise it is skipped with a warning — the server-side CI gate still applies). Full documentation: [CI/CD & Git Hooks](docs/help/ci-cd/index.md).
+Der `pre-commit`-Hook benötigt Python 3 im `PATH`; der `pre-push`-Scan läuft unter Windows
+direkt aus (unter Linux/macOS wird Mono benötigt, sonst wird er mit einer Warnung
+übersprungen — das CI-Gate auf der Serverseite gilt trotzdem). Vollständige Dokumentation:
+[CI/CD & Git Hooks](docs/help/ci-cd/index.md).
 
-## License
+## Lizenz
 
-GPL-3.0 — see `EmberMediaManager/License.txt`.
+GPL-3.0 — siehe `EmberMediaManager/License.txt`.
+
+Copyright (C) Dan Cooper und das Ember-Team für Ember Media Manager.
+Copyright (C) die Mitwirkenden dieses Forks für die Jellyfin-Anpassung.
