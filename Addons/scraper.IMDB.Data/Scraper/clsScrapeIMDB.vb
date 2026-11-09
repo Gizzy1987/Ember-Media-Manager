@@ -276,7 +276,10 @@ Public Class Scraper
             If filteredoptions.bMainRuntime Then
                 Dim lSeconds As Long = CLng(clsIMDBApi.JNum(clsIMDBApi.JObj(data, "runtime"), "seconds"))
                 If lSeconds > 0 Then
-                    nMovie.Runtime = String.Format("{0}:{1:00}", lSeconds \ 3600, (lSeconds Mod 3600) \ 60)
+                    'the nfo format expects minutes (all other scrapers deliver minutes
+                    'too, see MovieScraperDurationRuntimeFormat = "<m>"), so do not use
+                    'the "h:mm" notation here
+                    nMovie.Runtime = CStr(Math.Round(lSeconds / 60, 0))
                 Else
                     logger.Trace(String.Format("[IMDB] [GetMovieInfo] [ID:""{0}""] can't parse Runtime", id))
                 End If
@@ -356,7 +359,8 @@ Public Class Scraper
             If filteredoptions.bMainStudios Then
                 For Each node In clsIMDBApi.JEdges(clsIMDBApi.JObj(data, "companyCredits"))
                     Dim strCategory As String = clsIMDBApi.JStr(clsIMDBApi.JObj(node, "category"), "id")
-                    If strCategory = "production" OrElse (_SpecialSettings.StudiowithDistributors AndAlso strCategory = "distributors") Then
+                    'the GraphQL API uses the category id "distribution" for distributors
+                    If strCategory = "production" OrElse (_SpecialSettings.StudiowithDistributors AndAlso strCategory = "distribution") Then
                         Dim strStudio As String = clsIMDBApi.JStr(clsIMDBApi.JObj(clsIMDBApi.JObj(node, "company"), "companyText"), "text")
                         If Not String.IsNullOrEmpty(strStudio) AndAlso Not nMovie.Studios.Contains(strStudio) Then nMovie.Studios.Add(strStudio)
                     End If
@@ -386,9 +390,13 @@ Public Class Scraper
                 nMovie.OriginalTitle = strOriginalTitle
             End If
 
-            'the GraphQL API does not provide certifications, they are scraped by the other scrapers
+            'certifications
+            'the GraphQL API does provide the certificate of a title (the original rating),
+            'see the "certificate" field in the query
             If filteredoptions.bMainCertifications Then
-                logger.Trace(String.Format("[IMDB] [GetMovieInfo] [ID:""{0}""] certifications are not provided by the IMDb API", id))
+                ParseCertificate(data, nMovie.Certifications)
+                Dim strMPAA As String = GetCertificateRating(data)
+                If Not String.IsNullOrEmpty(strMPAA) Then nMovie.MPAA = strMPAA
             End If
 
             Return nMovie
@@ -505,7 +513,8 @@ Public Class Scraper
             'runtime
             Dim lSeconds As Long = CLng(clsIMDBApi.JNum(clsIMDBApi.JObj(data, "runtime"), "seconds"))
             If lSeconds > 0 Then
-                nTVEpisode.Runtime = String.Format("{0}:{1:00}", lSeconds \ 3600, (lSeconds Mod 3600) \ 60)
+                'the nfo format expects minutes (all other scrapers deliver minutes too)
+                nTVEpisode.Runtime = CStr(Math.Round(lSeconds / 60, 0))
             End If
 
             'rating
@@ -730,13 +739,25 @@ Public Class Scraper
             If filteredoptions.bMainRuntime Then
                 Dim lSeconds As Long = CLng(clsIMDBApi.JNum(clsIMDBApi.JObj(data, "runtime"), "seconds"))
                 If lSeconds > 0 Then
-                    nTVShow.Runtime = String.Format("{0}:{1:00}", lSeconds \ 3600, (lSeconds Mod 3600) \ 60)
+                    'the nfo format expects minutes (all other scrapers deliver minutes too)
+                    nTVShow.Runtime = CStr(Math.Round(lSeconds / 60, 0))
                 Else
                     logger.Trace(String.Format("[IMDB] [GetTVShowInfo] [ID:""{0}""] can't parse Runtime", id))
                 End If
             End If
 
             If bwIMDB.CancellationPending Then Return Nothing
+
+            'tagline
+            If filteredoptions.bMainTagline AndAlso bIsScraperLanguage Then
+                For Each node In clsIMDBApi.JEdges(clsIMDBApi.JObj(data, "taglines"))
+                    Dim strTagline As String = clsIMDBApi.JStr(node, "text")
+                    If Not String.IsNullOrEmpty(strTagline) Then
+                        nTVShow.Tagline = strTagline
+                        Exit For
+                    End If
+                Next
+            End If
 
             'premiered
             If filteredoptions.bMainPremiered Then
@@ -804,9 +825,13 @@ Public Class Scraper
 
             If bwIMDB.CancellationPending Then Return Nothing
 
-            'certifications are not part of the IMDb API
+            'certifications
+            'the GraphQL API does provide the certificate of a title (the original rating),
+            'see the "certificate" field in the query
             If filteredoptions.bMainCertifications Then
-                logger.Trace(String.Format("[IMDB] [GetTVShowInfo] [ID:""{0}""] certifications are not provided by the IMDb API", id))
+                ParseCertificate(data, nTVShow.Certifications)
+                Dim strMPAA As String = GetCertificateRating(data)
+                If Not String.IsNullOrEmpty(strMPAA) Then nTVShow.MPAA = strMPAA
             End If
 
             'poster for the search result dialog
@@ -848,15 +873,27 @@ Public Class Scraper
 
 
     Public Function GetMovieStudios(ByVal id As String) As List(Of String)
-        Dim webParsingSeasons As New HtmlWeb
-        Dim htmldReference As HtmlDocument = webParsingSeasons.Load(String.Concat("http://www.imdb.com/title/", id, "/reference"))
-        If htmldReference IsNot Nothing Then
-            Dim lstStudios = ParseStudios(htmldReference)
-            If lstStudios IsNot Nothing Then
-                Return lstStudios
+        Dim lstStudios As New List(Of String)
+
+        'the old html scraping of the "reference" page does not work any more:
+        'imdb answers with http 202 and an empty body, so the studios were never found.
+        'the graphql api delivers the company credits (including the distributors).
+        Try
+            Dim data As Dictionary(Of String, Object) = clsIMDBApi.QueryTitle(id)
+            If data IsNot Nothing Then
+                For Each node In clsIMDBApi.JEdges(clsIMDBApi.JObj(data, "companyCredits"))
+                    Dim strCategory As String = clsIMDBApi.JStr(clsIMDBApi.JObj(node, "category"), "id")
+                    If strCategory = "production" OrElse (_SpecialSettings.StudiowithDistributors AndAlso strCategory = "distribution") Then
+                        Dim strStudio As String = clsIMDBApi.JStr(clsIMDBApi.JObj(clsIMDBApi.JObj(node, "company"), "companyText"), "text")
+                        If Not String.IsNullOrEmpty(strStudio) AndAlso Not lstStudios.Contains(strStudio) Then lstStudios.Add(strStudio)
+                    End If
+                Next
             End If
-        End If
-        Return New List(Of String)
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+
+        Return lstStudios
     End Function
 
     Public Function GetSearchMovieInfo(ByVal title As String,
@@ -1118,6 +1155,43 @@ Public Class Scraper
         Return originaltitle
     End Function
 
+    ''' <summary>
+    ''' Reads the certificate of a title from the GraphQL response.
+    ''' The "certificate" field carries the original rating including its country,
+    ''' e.g. { "rating": "R", "country": { "id": "US", "text": "United States" } }.
+    ''' </summary>
+    ''' <param name="data">The GraphQL title object</param>
+    ''' <returns>The rating (e.g. "R", "TV-MA") or an empty string</returns>
+    Private Function GetCertificateRating(ByVal data As Object) As String
+        Try
+            Return clsIMDBApi.JStr(clsIMDBApi.JObj(data, "certificate"), "rating")
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+            Return String.Empty
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Adds the certificate of a title to the certification list.
+    ''' The format follows the other scrapers: "&lt;Land&gt;:&lt;FSK&gt;" (e.g. "United States:R").
+    ''' </summary>
+    ''' <param name="data">The GraphQL title object</param>
+    ''' <param name="certifications">The list to add the certification to</param>
+    Private Sub ParseCertificate(ByVal data As Object, ByRef certifications As List(Of String))
+        Try
+            Dim strRating As String = GetCertificateRating(data)
+            If String.IsNullOrEmpty(strRating) Then Exit Sub
+
+            Dim strCountry As String = clsIMDBApi.JStr(clsIMDBApi.JObj(clsIMDBApi.JObj(data, "certificate"), "country"), "text")
+            Dim strCertification As String = If(String.IsNullOrEmpty(strCountry), strRating, String.Concat(strCountry, ":", strRating))
+
+            If certifications Is Nothing Then Exit Sub
+            If Not certifications.Contains(strCertification) Then certifications.Add(strCertification)
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+
     Private Function ParseGenres(ByRef htmldReference As HtmlDocument) As List(Of String)
         Dim selNode = htmldReference.DocumentNode.SelectSingleNode("//tr[@class=""ipl-zebra-list__item""]/td[@class=""ipl-zebra-list__label""][.='Genres']")
         If selNode IsNot Nothing AndAlso selNode.ParentNode IsNot Nothing Then
@@ -1305,28 +1379,6 @@ Public Class Scraper
             End If
         End If
         Return False
-    End Function
-
-    Private Function ParseStudios(ByRef htmldReference As HtmlDocument) As List(Of String)
-        Dim lstStudios As New List(Of String)
-        Dim selNode = htmldReference.DocumentNode.SelectSingleNode("//h4[@class=""ipl-header__content ipl-list-title""][.='Production Companies']")
-        If selNode IsNot Nothing Then
-            lstStudios.AddRange(selNode.ParentNode.ParentNode.NextSibling.NextSibling.Descendants("a").Select(Function(f) HttpUtility.HtmlDecode(f.InnerText)).Distinct.ToList)
-        End If
-
-        If _SpecialSettings.StudiowithDistributors Then
-            Dim selNodeD = htmldReference.DocumentNode.SelectSingleNode("//h4[@class=""ipl-header__content ipl-list-title""][.='Distributors']")
-            If selNodeD IsNot Nothing Then
-                lstStudios.AddRange(selNodeD.ParentNode.ParentNode.NextSibling.NextSibling.Descendants("a").Select(Function(f) HttpUtility.HtmlDecode(f.InnerText)).Distinct.ToList)
-                lstStudios = lstStudios.Distinct.ToList
-            End If
-        End If
-
-        If lstStudios.Count > 0 Then
-            Return lstStudios
-        Else
-            Return Nothing
-        End If
     End Function
 
     Private Function ParseTagline(ByRef htmldReference As HtmlDocument) As String

@@ -66,6 +66,7 @@ Public Class clsIMDBApi
                                           "principalCredits { credits { name { id nameText { text } } category { id } } } " &
                                           "companyCredits(first: 25) { edges { node { company { id companyText { text } } category { id text } } } } " &
                                           "akas(first: 40) { edges { node { text country { id text } } } } " &
+                                          "certificate { rating country { id text } attributes { text } } " &
                                           "primaryImage { url width height } " &
                                           "titleType { id text }"
 
@@ -82,6 +83,7 @@ Public Class clsIMDBApi
                                           "principalCredits { credits { name { id nameText { text } } category { id } } } " &
                                           "companyCredits(first: 10) { edges { node { company { id companyText { text } } category { id } } } } " &
                                           "akas(first: 40) { edges { node { text country { id text } } } } " &
+                                          "certificate { rating country { id text } attributes { text } } " &
                                           "primaryImage { url width height } titleType { id text } " &
                                           "episodes { episodes(first: 250) { edges { node { id titleText { text } " &
                                           "series { episodeNumber { seasonNumber episodeNumber } } " &
