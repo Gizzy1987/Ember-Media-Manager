@@ -287,7 +287,7 @@ Public Class Settings
             _moviegenerallanguage = If(String.IsNullOrEmpty(value), "de-DE", value)
         End Set
     End Property
-    Public Property MovieGeneralMarkNew() As Boolean = False
+    Public Property MovieGeneralMarkNew() As Boolean = True
     Public Property MovieGeneralMediaListSorting() As List(Of ListSorting) = New List(Of ListSorting)
     Public Property MovieImagesCacheEnabled() As Boolean = False
     Public Property MovieImagesDisplayImageSelect() As Boolean = True
@@ -355,8 +355,8 @@ Public Class Settings
     Public Property MovieScraperCast() As Boolean = True
     Public Property MovieScraperCastLimit() As Integer = 0
     Public Property MovieScraperCastWithImgOnly() As Boolean = False
-    Public Property MovieScraperCert() As Boolean = False
-    Public Property MovieScraperCertCountry() As String = String.Empty
+    Public Property MovieScraperCert() As Boolean = True
+    Public Property MovieScraperCertCountry() As String = "[Alle]"
     Public Property MovieScraperCertForMPAA() As Boolean = False
     Public Property MovieScraperCertForMPAAFallback() As Boolean = False
     <Obsolete("Use ""MovieScraperCertCountry"" instead")>
@@ -496,7 +496,7 @@ Public Class Settings
     Public Property OMMMediaStubTagline() As String = String.Empty
     Public Property Password() As String = String.Empty
     Public Property ProxyCredentials() As NetworkCredential = New NetworkCredential
-    Public Property ProxyPort() As Integer = 0
+    Public Property ProxyPort() As Integer = -1
     Public Property ProxyURI() As String = String.Empty
     Public Property SortPath() As String = String.Empty
     Public Property TVAllSeasonsBannerHeight() As Integer = 0
@@ -573,8 +573,8 @@ Public Class Settings
             _tvgenerallanguage = If(String.IsNullOrEmpty(value), "de-DE", value)
         End Set
     End Property
-    Public Property TVGeneralMarkNewEpisodes() As Boolean = False
-    Public Property TVGeneralMarkNewShows() As Boolean = False
+    Public Property TVGeneralMarkNewEpisodes() As Boolean = True
+    Public Property TVGeneralMarkNewShows() As Boolean = True
     Public Property TVGeneralSeasonListSorting() As List(Of ListSorting) = New List(Of ListSorting)
     Public Property TVGeneralShowListSorting() As List(Of ListSorting) = New List(Of ListSorting)
     Public Property TVImagesCacheEnabled() As Boolean = True
@@ -666,8 +666,8 @@ Public Class Settings
     End Property
     Public Property TVScraperShowActors() As Boolean = True
     Public Property TVScraperShowActorsLimit() As Integer = 0
-    Public Property TVScraperShowCert() As Boolean = False
-    Public Property TVScraperShowCertCountry() As String = String.Empty
+    Public Property TVScraperShowCert() As Boolean = True
+    Public Property TVScraperShowCertCountry() As String = "[Alle]"
     Public Property TVScraperShowCertForMPAA() As Boolean = False
     Public Property TVScraperShowCertForMPAAFallback() As Boolean = False
     <Obsolete("Use ""TVScraperShowCertCountry"" instead")>
@@ -683,7 +683,7 @@ Public Class Settings
     Public Property TVScraperShowCountry() As Boolean = True
     Public Property TVScraperShowCountryLimit() As Integer = 0
     Public Property TVScraperShowCreators() As Boolean = True
-    Public Property TVScraperShowEpiGuideURL() As Boolean = False
+    Public Property TVScraperShowEpiGuideURL() As Boolean = True
     Public Property TVScraperShowGenre() As Boolean = True
     Public Property TVScraperShowGenreLimit() As Integer = 0
     Public Property TVScraperShowMPAA() As Boolean = True
@@ -809,14 +809,14 @@ Public Class Settings
     '***************************************************
 
     '*************** Jellyfin Jellyfin settings ***************
-    Public Property MovieUseJellyfin() As Boolean = False
-    Public Property MovieActorThumbsJellyfin() As Boolean = False
-    Public Property MovieExtrafanartsJellyfin() As Boolean = False
-    Public Property MovieExtrathumbsJellyfin() As Boolean = False
-    Public Property MovieFanartJellyfin() As Boolean = False
-    Public Property MovieNFOJellyfin() As Boolean = False
-    Public Property MoviePosterJellyfin() As Boolean = False
-    Public Property MovieTrailerJellyfin() As Boolean = False
+    Public Property MovieUseJellyfin() As Boolean = True
+    Public Property MovieActorThumbsJellyfin() As Boolean = True
+    Public Property MovieExtrafanartsJellyfin() As Boolean = True
+    Public Property MovieExtrathumbsJellyfin() As Boolean = True
+    Public Property MovieFanartJellyfin() As Boolean = True
+    Public Property MovieNFOJellyfin() As Boolean = True
+    Public Property MoviePosterJellyfin() As Boolean = True
+    Public Property MovieTrailerJellyfin() As Boolean = True
 
     '*************** Jellyfin Eden settings ***************
 
@@ -946,19 +946,19 @@ Public Class Settings
     '***************************************************
 
     '*************** Jellyfin Jellyfin settings ***************
-    Public Property TVUseJellyfin() As Boolean = False
-    Public Property TVEpisodeActorThumbsJellyfin() As Boolean = False
-    Public Property TVEpisodeNFOJellyfin() As Boolean = False
-    Public Property TVEpisodePosterJellyfin() As Boolean = False
-    Public Property TVSeasonBannerJellyfin() As Boolean = False
-    Public Property TVSeasonFanartJellyfin() As Boolean = False
-    Public Property TVSeasonPosterJellyfin() As Boolean = False
-    Public Property TVShowActorThumbsJellyfin() As Boolean = False
-    Public Property TVShowBannerJellyfin() As Boolean = False
-    Public Property TVShowExtrafanartsJellyfin() As Boolean = False
-    Public Property TVShowFanartJellyfin() As Boolean = False
-    Public Property TVShowNFOJellyfin() As Boolean = False
-    Public Property TVShowPosterJellyfin() As Boolean = False
+    Public Property TVUseJellyfin() As Boolean = True
+    Public Property TVEpisodeActorThumbsJellyfin() As Boolean = True
+    Public Property TVEpisodeNFOJellyfin() As Boolean = True
+    Public Property TVEpisodePosterJellyfin() As Boolean = True
+    Public Property TVSeasonBannerJellyfin() As Boolean = True
+    Public Property TVSeasonFanartJellyfin() As Boolean = True
+    Public Property TVSeasonPosterJellyfin() As Boolean = True
+    Public Property TVShowActorThumbsJellyfin() As Boolean = True
+    Public Property TVShowBannerJellyfin() As Boolean = True
+    Public Property TVShowExtrafanartsJellyfin() As Boolean = True
+    Public Property TVShowFanartJellyfin() As Boolean = True
+    Public Property TVShowNFOJellyfin() As Boolean = True
+    Public Property TVShowPosterJellyfin() As Boolean = True
 
     '******** Jellyfin ArtworkDownloader settings **********
 
