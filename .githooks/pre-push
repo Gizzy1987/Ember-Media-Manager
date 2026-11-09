@@ -40,9 +40,9 @@ fi
 
 RESTORE_LOG=$(mktemp)
 if [ "$NUGET_RUN" = "mono" ]; then
-  mono "$NUGET" restore "Ember Media Manager.sln" > "$RESTORE_LOG" 2>&1
+  mono "$NUGET" restore "Ember Media Manager for Jellyfin.sln" > "$RESTORE_LOG" 2>&1
 else
-  "$NUGET" restore "Ember Media Manager.sln" > "$RESTORE_LOG" 2>&1
+  "$NUGET" restore "Ember Media Manager for Jellyfin.sln" > "$RESTORE_LOG" 2>&1
 fi
 RESTORE_EXIT=$?
 cat "$RESTORE_LOG"

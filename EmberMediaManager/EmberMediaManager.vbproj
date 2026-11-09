@@ -927,7 +927,6 @@
     <None Include="x64\mediainfo-rar\MediaInfo.dll" />
     <None Include="x64\mediainfo-rar\unrar.exe" />
     <None Include="x64\MediaInfo.dll" />
-    <None Include="x86\ffmpeg.exe" />
     <None Include="x86\mediainfo-rar\mediainfo-rar.exe" />
     <None Include="x86\mediainfo-rar\MediaInfo.dll" />
     <None Include="x86\mediainfo-rar\unrar.exe" />

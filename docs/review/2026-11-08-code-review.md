@@ -270,15 +270,23 @@ Geprüft: frische DB aus der Schema-Datei erzeugt alle fünf Views; der Patch we
 
 ## 6. Reproduzierbarkeit
 
-Die Messungen liegen unter `.review-bench/` (Benchmark-Skripte und die optimierten View-Definitionen als Referenz):
+Die Messungen wurden mit Einweg-Skripten ausserhalb des Repos durchgefuehrt
+(SQLite-Datenbank aus `EmberAPI/DB/MyVideosDBSQL.txt`, dieselbe Schema-Datei wie
+die Anwendung, synthetische Daten mit realistischem Link-Umfang). Die Skripte
+wurden nach Abschluss der Arbeit entfernt - sie enthielten maschinenbezogene
+Pfade und sind fuer den Anwender ohne Nutzen. Das Vorgehen selbst:
 
-| Datei | Zweck |
+| Schritt | Vorgehen |
 |---|---|
-| `bench.ps1` | Original-View vs. optimierte View, Kreuzprodukt-Zwischenzeilen messen |
-| `bench2.ps1` | Skalierung über die Zahl der Art-Einträge pro Film |
-| `validate.ps1` | zeilenweiser Äquivalenzvergleich aller fünf Views |
-| `test_patch.ps1` | frische DB aus Schema-Datei + Patch v48 anwenden und prüfen |
-| `views_optimized.sql` | Referenz der optimierten View-Definitionen |
+| Kreuzprodukt messen | `SELECT COUNT(*) FROM movie, countrylinkmovie, writerlinkmovie, ...` ueber alle Join-Tabellen einer Query - Ergebnis waren rund 973 Millionen Zwischenzeilen bei 2.600 Filmen |
+| View vergleichen | Original-View und optimierte View ueber `SELECT * FROM ...` in einer SQLite-Datenbank mit identischem Schema gegeneinander messen |
+| Skalierung | gleiche Messung mit 1, 3 und 6 Art-Eintraegen pro Film |
+| Aequivalenz | zeilenweiser Vergleich beider Views ueber alle Spalten (600 / 100 / 240 / 120 / 3.140 Zeilen) |
+| Patch pruefen | frische Datenbank aus der Schema-Datei erzeugen, `MyVideosDBSQL_v48_Patch.xml` anwenden, Views gegenpruefen |
+
+Die Aenderungen selbst liegen versioniert vor: `EmberAPI/DB/MyVideosDBSQL.txt` (Views fuer
+neue Datenbanken) und `EmberAPI/DB/MyVideosDBSQL_v48_Patch.xml` (Views fuer
+Bestandsdatenbanken).
 
 ---
 

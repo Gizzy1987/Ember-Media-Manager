@@ -175,12 +175,18 @@ NLog-interne Fehler (z. B. ein fehlerhaftes Target) landeten bisher ausschließl
 
 ## 8. Reproduzierbarkeit
 
-Die Prüfskripte liegen unter `.review-bench/`:
+Die Pruefungen erfolgten mit Einweg-Skripten ausserhalb des Repos; sie wurden nach
+Abschluss der Arbeit entfernt (maschinenbezogene Pfade, fuer den Anwender ohne
+Nutzen). Das Vorgehen:
 
-| Datei | Zweck |
+| Pruefung | Vorgehen |
 |---|---|
-| `pkg-diff.ps1` | Paketversionen beider Bäume gegenüberstellen |
-| `test-tmdblib2.ps1` | TMDbLib-2.3.0-Compile-Probe |
-| `test-tmdblib-behaviour2.ps1` | NULL-Verhalten der TMDbLib-Sammlungen vergleichen |
-| `test-imdb-query.ps1` | Die echten Query-Konstanten live gegen die IMDb-API testen |
+| Paketvergleich | `packages.config` aller Projekte beider Baue per `git show FETCH_HEAD:<pfad>` gegeneinander gestellt |
+| TMDbLib-Compile-Probe | in einem Wegwerf-Branch `packages.config` und `<HintPath>` auf 2.3.0 umgestellt, alle drei TMDb-Projekte gebaut (0 Fehler), danach Branch verworfen |
+| NULL-Verhalten | per Reflection eine Instanz von `Movie`/`TvShow`/`TvSeason` erzeugt und die Collection-Properties beider TMDbLib-Versionen ausgelesen |
+| Live-API | die echten Query-Konstanten aus der Quelle gegen `https://api.graphql.imdb.com/` gepostet und die Antwort ausgewertet |
+
+Die IMDb-Aussagen in diesem Bericht sind damit gegen die laufende API belegt,
+nicht nur gegen den Code gelesen.
+
 | `imdb-cert.ps1` | GraphQL-Struktur des `certificate`-Feldes ermitteln |
