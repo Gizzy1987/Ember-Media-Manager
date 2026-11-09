@@ -929,13 +929,13 @@ Public Class dlgImgSelect
                 currSubImage = CreateImageTag(sImg, eImageType, iSeason)
                 RefreshSubImage(currSubImage)
             Case Enums.ModifierType.MainExtrafanarts
-                If MessageBox.Show(Master.eLang.GetString(99999, "Are you sure you want to reset to the default list of Extrafanarts?"), Master.eLang.GetString(99999, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
+                If MessageBox.Show(Master.eLang.GetString(1767, "Are you sure you want to reset to the default list of Extrafanarts?"), Master.eLang.GetString(1768, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
                     Result.ImagesContainer.Extrafanarts.Clear()
                     Result.ImagesContainer.Extrafanarts.AddRange(tDBElement.ImagesContainer.Extrafanarts)
                     CreateSubImages()
                 End If
             Case Enums.ModifierType.MainExtrathumbs
-                If MessageBox.Show(Master.eLang.GetString(99999, "Are you sure you want to reset to the default list of Extrathumbs?"), Master.eLang.GetString(99999, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
+                If MessageBox.Show(Master.eLang.GetString(1769, "Are you sure you want to reset to the default list of Extrathumbs?"), Master.eLang.GetString(1770, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
                     Result.ImagesContainer.Extrathumbs.Clear()
                     Result.ImagesContainer.Extrathumbs.AddRange(tDBElement.ImagesContainer.Extrathumbs)
                     CreateSubImages()
@@ -971,13 +971,13 @@ Public Class dlgImgSelect
                 currSubImage = CreateImageTag(sImg, eImageType, iSeason)
                 RefreshSubImage(currSubImage)
             Case Enums.ModifierType.MainExtrafanarts
-                If MessageBox.Show(Master.eLang.GetString(99999, "Are you sure you want to reset to the default list of Extrafanarts?"), Master.eLang.GetString(99999, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
+                If MessageBox.Show(Master.eLang.GetString(1767, "Are you sure you want to reset to the default list of Extrafanarts?"), Master.eLang.GetString(1768, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
                     Result.ImagesContainer.Extrafanarts.Clear()
                     Result.ImagesContainer.Extrafanarts.AddRange(tPreferredImagesContainer.ImagesContainer.Extrafanarts)
                     CreateSubImages()
                 End If
             Case Enums.ModifierType.MainExtrathumbs
-                If MessageBox.Show(Master.eLang.GetString(99999, "Are you sure you want to reset to the default list of Extrathumbs?"), Master.eLang.GetString(99999, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
+                If MessageBox.Show(Master.eLang.GetString(1769, "Are you sure you want to reset to the default list of Extrathumbs?"), Master.eLang.GetString(1770, "Reload default list"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) = DialogResult.OK Then
                     Result.ImagesContainer.Extrathumbs.Clear()
                     Result.ImagesContainer.Extrathumbs.AddRange(tPreferredImagesContainer.ImagesContainer.Extrathumbs)
                     CreateSubImages()

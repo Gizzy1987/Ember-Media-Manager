@@ -411,7 +411,10 @@ Public Class Scraper
                                         .OldCredits = If(Episode.Element("Writer") Is Nothing, String.Empty, String.Join(" / ", Episode.Element("Writer").Value.Trim(Convert.ToChar("|")).Split(Convert.ToChar("|"))))
                                         .Actors.Clear()
                                         .Actors.AddRange(Actors)
-                                        If sInfo.Options.bEpGuestStars Then .Actors.AddRange(GuestStarsToActors(Episode.Element("GuestStars").Value))
+                                        If sInfo.Options.bEpGuestStars Then
+                                            Dim xGuestStars = Episode.Element("GuestStars")
+                                            If xGuestStars IsNot Nothing AndAlso Not String.IsNullOrEmpty(xGuestStars.Value) Then .Actors.AddRange(GuestStarsToActors(xGuestStars.Value))
+                                        End If
                                         .PosterURL = If(Episode.Element("filename") Is Nothing, String.Empty, String.Format("http://{0}/banners/{1}", _TVDBMirror, Episode.Element("filename").Value))
                                         .LocalFile = If(Episode.Element("filename") Is Nothing, String.Empty, Path.Combine(Master.TempPath, String.Concat("Shows", Path.DirectorySeparatorChar, sInfo.TVDBID, Path.DirectorySeparatorChar, "episodeposters", Path.DirectorySeparatorChar, Episode.Element("filename").Value.Replace(Convert.ToChar("/"), Path.DirectorySeparatorChar))))
                                     End With
@@ -859,8 +862,10 @@ Public Class Scraper
                         If Me.bwTVDB.CancellationPending Then Return
 
                         Dim cSea = From cSeason As TVDBSeasonImage In TVDBImages.SeasonImageList Where cSeason.Season = iSea Take 1
+                        Dim bSeasonSaved As Boolean = False
                         If cSea.Count > 0 Then
-                            If Not cSea(0).AlreadySaved Then
+                            bSeasonSaved = cSea(0).AlreadySaved
+                            If Not bSeasonSaved Then
                                 If Master.eSettings.TVSeasonBannerAnyEnabled Then
                                     If Not String.IsNullOrEmpty(cSea(0).Banner.LocalFile) AndAlso File.Exists(cSea(0).Banner.LocalFile) Then
                                         cSea(0).Banner.WebImage.FromFile(cSea(0).Banner.LocalFile)
@@ -926,8 +931,8 @@ Public Class Scraper
 
                         ModulesManager.Instance.RunGeneric(Enums.ModuleEventType.ScraperMulti_TVEpisode, Nothing, Nothing, False, , Episode)
 
-                        Master.DB.SaveTVEpToDB(Episode, False, If(cSea(0).AlreadySaved = False, True, False), True, True)
-                        cSea(0).AlreadySaved = True
+                        Master.DB.SaveTVEpToDB(Episode, False, Not bSeasonSaved, True, True)
+                        If cSea.Count > 0 Then cSea(0).AlreadySaved = True
 
                         'fix/workaround for multi-episode files after renaming
                         For e As Integer = 0 To tmpTVDBShow.Episodes.Count - 1
@@ -1134,7 +1139,9 @@ Public Class Scraper
                                     .ID = sID
                                     .IMDB = If(xS(0).Element("IMDB_ID") Is Nothing, .IMDB, xS(0).Element("IMDB_ID").Value)
                                     If sInfo.Options.bShowTitle AndAlso (String.IsNullOrEmpty(.Title) OrElse Not Master.eSettings.TVLockShowTitle) Then .Title = If(xS(0).Element("SeriesName") Is Nothing, .Title, xS(0).Element("SeriesName").Value)
-                                    If sInfo.Options.bShowEpisodeGuide Then .EpisodeGuide.URL = If(Not String.IsNullOrEmpty(clsAdvancedSettings.GetSetting("TVDBAPIKey", "")), String.Format("http://{0}/api/{1}/series/{2}/all/{3}.zip", _TVDBMirror, clsAdvancedSettings.GetSetting("TVDBAPIKey", ""), sID, clsAdvancedSettings.GetSetting("TVDBLanguage", "en")), String.Empty)
+                                    'The api key must not be part of the url - the url is stored in the database and written to the nfo files.
+                                    'The key is only added when the guide is actually downloaded.
+                                    If sInfo.Options.bShowEpisodeGuide Then .EpisodeGuide.URL = If(Not String.IsNullOrEmpty(clsAdvancedSettings.GetSetting("TVDBAPIKey", "")), String.Format("http://{0}/api/series/{1}/all/{2}.zip", _TVDBMirror, sID, clsAdvancedSettings.GetSetting("TVDBLanguage", "en")), String.Empty)
                                     If sInfo.Options.bShowGenre AndAlso (String.IsNullOrEmpty(.Genre) OrElse Not Master.eSettings.TVLockShowGenre) Then .Genre = If(xS(0).Element("Genre") Is Nothing, .Genre, String.Join(" / ", xS(0).Element("Genre").Value.Trim(Convert.ToChar("|")).Split(Convert.ToChar("|"))))
                                     If sInfo.Options.bShowMPAA Then .MPAA = If(xS(0).Element("ContentRating") Is Nothing, .MPAA, xS(0).Element("ContentRating").Value)
                                     If sInfo.Options.bShowPlot AndAlso (String.IsNullOrEmpty(.Plot) OrElse Not Master.eSettings.TVLockShowPlot) Then .Plot = If(xS(0).Element("Overview") Is Nothing, .Plot, xS(0).Element("Overview").Value.ToString.Trim)
@@ -1249,7 +1256,10 @@ Public Class Scraper
                                             .Actors.Clear()
                                             .Actors.AddRange(Actors)
                                         End If
-                                        If sInfo.Options.bEpGuestStars Then .Actors.AddRange(GuestStarsToActors(xE.Element("GuestStars").Value))
+                                        If sInfo.Options.bEpGuestStars Then
+                                            Dim xGuestStars = xE.Element("GuestStars")
+                                            If xGuestStars IsNot Nothing AndAlso Not String.IsNullOrEmpty(xGuestStars.Value) Then .Actors.AddRange(GuestStarsToActors(xGuestStars.Value))
+                                        End If
                                         .PosterURL = If(xE.Element("filename") Is Nothing OrElse String.IsNullOrEmpty(xE.Element("filename").Value), String.Empty, String.Format("http://{0}/banners/{1}", _TVDBMirror, xE.Element("filename").Value))
                                         .LocalFile = If(xE.Element("filename") Is Nothing OrElse String.IsNullOrEmpty(xE.Element("filename").Value), String.Empty, Path.Combine(Master.TempPath, String.Concat("Shows", Path.DirectorySeparatorChar, sID, Path.DirectorySeparatorChar, "episodeposters", Path.DirectorySeparatorChar, xE.Element("filename").Value.Replace(Convert.ToChar("/"), Path.DirectorySeparatorChar))))
                                     End With

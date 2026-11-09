@@ -34,9 +34,9 @@ Public Class Settings
 
     Shared _Logger As Logger = LogManager.GetCurrentClassLogger()
 
-    Private _moviegenerallanguage As String = "en-US"
-    Private _tvgenerallanguage As String = "en-US"
-    Private Const _settingsversion As UInteger = 1
+    Private _moviegenerallanguage As String = "de-DE"
+    Private _tvgenerallanguage As String = "de-DE"
+    Private Const _settingsversion As UInteger = 4
 
 #End Region 'Fields
 
@@ -152,7 +152,7 @@ Public Class Settings
     Public Property GeneralInfoPanelStateTVEpisode() As Integer = 2
     Public Property GeneralInfoPanelStateTVSeason() As Integer = 2
     Public Property GeneralInfoPanelStateTVShow() As Integer = 2
-    Public Property GeneralLanguage() As String = "en-US"
+    Public Property GeneralLanguage() As String = "de-DE"
     Public Property GeneralMainFilterSortColumn_Episodes() As Integer = 1
     Public Property GeneralMainFilterSortColumn_MovieSets() As Integer = 1
     Public Property GeneralMainFilterSortColumn_Movies() As Integer = 3
@@ -216,7 +216,7 @@ Public Class Settings
     Public Property MovieBannerPrefSizeOnly() As Boolean = False
     Public Property MovieBannerResize() As Boolean = False
     Public Property MovieBannerWidth() As Integer = 0
-    Public Property MovieCleanDB() As Boolean = False
+    Public Property MovieCleanDB() As Boolean = True
     Public Property MovieClearArtKeepExisting() As Boolean = False
     Public Property MovieClearLogoKeepExisting() As Boolean = False
     Public Property MovieClickScrape() As Boolean = False
@@ -284,7 +284,7 @@ Public Class Settings
             Return _moviegenerallanguage
         End Get
         Set(ByVal value As String)
-            _moviegenerallanguage = If(String.IsNullOrEmpty(value), "en-US", value)
+            _moviegenerallanguage = If(String.IsNullOrEmpty(value), "de-DE", value)
         End Set
     End Property
     Public Property MovieGeneralMarkNew() As Boolean = False
@@ -419,14 +419,14 @@ Public Class Settings
     Public Property MovieScraperTrailerFromTrailerScrapers() As Boolean = False
     Public Property MovieScraperUseMDDuration() As Boolean = True
     Public Property MovieScraperUserRating() As Boolean = True
-    Public Property MovieScraperXBMCTrailerFormat() As Boolean = False
+    Public Property MovieScraperJellyfinTrailerFormat() As Boolean = False
     Public Property MovieSetBannerHeight() As Integer = 0
     Public Property MovieSetBannerKeepExisting() As Boolean = False
     Public Property MovieSetBannerPrefSize() As Enums.MovieBannerSize = Enums.MovieBannerSize.Any
     Public Property MovieSetBannerPrefSizeOnly() As Boolean = False
     Public Property MovieSetBannerResize() As Boolean = False
     Public Property MovieSetBannerWidth() As Integer = 0
-    Public Property MovieSetCleanDB() As Boolean = False
+    Public Property MovieSetCleanDB() As Boolean = True
     Public Property MovieSetCleanFiles() As Boolean = False
     Public Property MovieSetClearArtKeepExisting() As Boolean = False
     Public Property MovieSetClearLogoKeepExisting() As Boolean = False
@@ -519,7 +519,7 @@ Public Class Settings
     Public Property TVAllSeasonsPosterPrefSizeOnly() As Boolean = False
     Public Property TVAllSeasonsPosterResize() As Boolean = False
     Public Property TVAllSeasonsPosterWidth() As Integer = 0
-    Public Property TVCleanDB() As Boolean = False
+    Public Property TVCleanDB() As Boolean = True
     Public Property TVDisplayMissingEpisodes() As Boolean = True
     Public Property TVEpisodeActorThumbsKeepExisting() As Boolean = False
     Public Property TVEpisodeFanartHeight() As Integer = 0
@@ -570,7 +570,7 @@ Public Class Settings
             Return _tvgenerallanguage
         End Get
         Set(ByVal value As String)
-            _tvgenerallanguage = If(String.IsNullOrEmpty(value), "en-US", value)
+            _tvgenerallanguage = If(String.IsNullOrEmpty(value), "de-DE", value)
         End Set
     End Property
     Public Property TVGeneralMarkNewEpisodes() As Boolean = False
@@ -808,47 +808,26 @@ Public Class Settings
     '******************* Movie Part ********************
     '***************************************************
 
-    '*************** XBMC Frodo settings ***************
-    Public Property MovieUseFrodo() As Boolean = False
-    Public Property MovieActorThumbsFrodo() As Boolean = False
-    Public Property MovieExtrafanartsFrodo() As Boolean = False
-    Public Property MovieExtrathumbsFrodo() As Boolean = False
-    Public Property MovieFanartFrodo() As Boolean = False
-    Public Property MovieNFOFrodo() As Boolean = False
-    Public Property MoviePosterFrodo() As Boolean = False
-    Public Property MovieTrailerFrodo() As Boolean = False
+    '*************** Jellyfin Jellyfin settings ***************
+    Public Property MovieUseJellyfin() As Boolean = False
+    Public Property MovieActorThumbsJellyfin() As Boolean = False
+    Public Property MovieExtrafanartsJellyfin() As Boolean = False
+    Public Property MovieExtrathumbsJellyfin() As Boolean = False
+    Public Property MovieFanartJellyfin() As Boolean = False
+    Public Property MovieNFOJellyfin() As Boolean = False
+    Public Property MoviePosterJellyfin() As Boolean = False
+    Public Property MovieTrailerJellyfin() As Boolean = False
 
-    '*************** XBMC Eden settings ***************
-    Public Property MovieUseEden() As Boolean = False
-    Public Property MovieActorThumbsEden() As Boolean = False
-    Public Property MovieExtrafanartsEden() As Boolean = False
-    Public Property MovieExtrathumbsEden() As Boolean = False
-    Public Property MovieFanartEden() As Boolean = False
-    Public Property MovieNFOEden() As Boolean = False
-    Public Property MoviePosterEden() As Boolean = False
-    Public Property MovieTrailerEden() As Boolean = False
+    '*************** Jellyfin Eden settings ***************
 
-    '************* XBMC optional settings *************
-    Public Property MovieXBMCProtectVTSBDMV() As Boolean = False
+    '************* Jellyfin optional settings *************
+    Public Property MovieProtectVTSBDMV() As Boolean = False
 
-    '******** XBMC ArtworkDownloader settings **********
-    Public Property MovieUseAD() As Boolean = False
-    Public Property MovieBannerAD() As Boolean = False
-    Public Property MovieClearArtAD() As Boolean = False
-    Public Property MovieClearLogoAD() As Boolean = False
-    Public Property MovieDiscArtAD() As Boolean = False
-    Public Property MovieLandscapeAD() As Boolean = False
+    '******** Jellyfin ArtworkDownloader settings **********
 
-    '********* XBMC Extended Images settings ***********
-    Public Property MovieUseExtended() As Boolean = False
-    Public Property MovieBannerExtended() As Boolean = False
-    Public Property MovieClearArtExtended() As Boolean = False
-    Public Property MovieClearLogoExtended() As Boolean = False
-    Public Property MovieDiscArtExtended() As Boolean = False
-    Public Property MovieKeyartExtended() As Boolean = False
-    Public Property MovieLandscapeExtended() As Boolean = False
+    '********* Jellyfin Extended Images settings ***********
 
-    '************** XBMC TvTunes settings **************
+    '************** Jellyfin TvTunes settings **************
     Public Property MovieThemeTvTunesEnable() As Boolean = False
     Public Property MovieThemeTvTunesCustom() As Boolean = False
     Public Property MovieThemeTvTunesCustomPath() As String = String.Empty
@@ -857,30 +836,12 @@ Public Class Settings
     Public Property MovieThemeTvTunesSubDir() As String = String.Empty
 
     '****************** YAMJ settings *****************
-    Public Property MovieUseYAMJ() As Boolean = False
-    Public Property MovieBannerYAMJ() As Boolean = False
-    Public Property MovieFanartYAMJ() As Boolean = False
-    Public Property MovieNFOYAMJ() As Boolean = False
-    Public Property MoviePosterYAMJ() As Boolean = False
-    Public Property MovieTrailerYAMJ() As Boolean = False
 
     '****************** NMJ settings *****************
-    Public Property MovieUseNMJ() As Boolean = False
-    Public Property MovieBannerNMJ() As Boolean = False
-    Public Property MovieFanartNMJ() As Boolean = False
-    Public Property MovieNFONMJ() As Boolean = False
-    Public Property MoviePosterNMJ() As Boolean = False
-    Public Property MovieTrailerNMJ() As Boolean = False
 
     '************** NMJ optional settings *************
-    Public Property MovieYAMJWatchedFile() As Boolean = False
-    Public Property MovieYAMJWatchedFolder() As String = String.Empty
 
     '***************** Boxee settings *****************
-    Public Property MovieUseBoxee() As Boolean = False
-    Public Property MovieFanartBoxee() As Boolean = False
-    Public Property MovieNFOBoxee() As Boolean = False
-    Public Property MoviePosterBoxee() As Boolean = False
 
     '***************** Expert settings ****************
     Public Property MovieUseExpert() As Boolean = False
@@ -958,39 +919,11 @@ Public Class Settings
     '****************** MovieSet Part ******************
     '***************************************************
 
-    '**************** Kodi Matrix settings *************
-    Public Property MovieSetUseMatrix() As Boolean = False
-    Public Property MovieSetBannerMatrix() As Boolean = False
-    Public Property MovieSetClearArtMatrix() As Boolean = False
-    Public Property MovieSetClearLogoMatrix() As Boolean = False
-    Public Property MovieSetDiscArtMatrix() As Boolean = False
-    Public Property MovieSetFanartMatrix() As Boolean = False
-    Public Property MovieSetKeyartMatrix() As Boolean = False
-    Public Property MovieSetLandscapeMatrix() As Boolean = False
-    Public Property MovieSetPathMatrix() As String = String.Empty
-    Public Property MovieSetPosterMatrix() As Boolean = False
+    '**************** Jellyfin Matrix settings *************
 
-    '**************** XBMC MSAA settings ***************
-    Public Property MovieSetUseMSAA() As Boolean = False
-    Public Property MovieSetBannerMSAA() As Boolean = False
-    Public Property MovieSetClearArtMSAA() As Boolean = False
-    Public Property MovieSetClearLogoMSAA() As Boolean = False
-    Public Property MovieSetFanartMSAA() As Boolean = False
-    Public Property MovieSetLandscapeMSAA() As Boolean = False
-    Public Property MovieSetPathMSAA() As String = String.Empty
-    Public Property MovieSetPosterMSAA() As Boolean = False
+    '**************** Jellyfin MSAA settings ***************
 
-    '********* XBMC Extended Images settings ***********
-    Public Property MovieSetUseExtended() As Boolean = False
-    Public Property MovieSetBannerExtended() As Boolean = False
-    Public Property MovieSetClearArtExtended() As Boolean = False
-    Public Property MovieSetClearLogoExtended() As Boolean = False
-    Public Property MovieSetDiscArtExtended() As Boolean = False
-    Public Property MovieSetFanartExtended() As Boolean = False
-    Public Property MovieSetKeyartExtended() As Boolean = False
-    Public Property MovieSetLandscapeExtended() As Boolean = False
-    Public Property MovieSetPathExtended() As String = String.Empty
-    Public Property MovieSetPosterExtended() As Boolean = False
+    '********* Jellyfin Extended Images settings ***********
 
     '***************** Expert settings ****************
     Public Property MovieSetUseExpert() As Boolean = False
@@ -1012,39 +945,26 @@ Public Class Settings
     '****************** TV Show Part *******************
     '***************************************************
 
-    '*************** XBMC Frodo settings ***************
-    Public Property TVUseFrodo() As Boolean = False
-    Public Property TVEpisodeActorThumbsFrodo() As Boolean = False
-    Public Property TVEpisodeNFOFrodo() As Boolean = False
-    Public Property TVEpisodePosterFrodo() As Boolean = False
-    Public Property TVSeasonBannerFrodo() As Boolean = False
-    Public Property TVSeasonFanartFrodo() As Boolean = False
-    Public Property TVSeasonPosterFrodo() As Boolean = False
-    Public Property TVShowActorThumbsFrodo() As Boolean = False
-    Public Property TVShowBannerFrodo() As Boolean = False
-    Public Property TVShowExtrafanartsFrodo() As Boolean = False
-    Public Property TVShowFanartFrodo() As Boolean = False
-    Public Property TVShowNFOFrodo() As Boolean = False
-    Public Property TVShowPosterFrodo() As Boolean = False
+    '*************** Jellyfin Jellyfin settings ***************
+    Public Property TVUseJellyfin() As Boolean = False
+    Public Property TVEpisodeActorThumbsJellyfin() As Boolean = False
+    Public Property TVEpisodeNFOJellyfin() As Boolean = False
+    Public Property TVEpisodePosterJellyfin() As Boolean = False
+    Public Property TVSeasonBannerJellyfin() As Boolean = False
+    Public Property TVSeasonFanartJellyfin() As Boolean = False
+    Public Property TVSeasonPosterJellyfin() As Boolean = False
+    Public Property TVShowActorThumbsJellyfin() As Boolean = False
+    Public Property TVShowBannerJellyfin() As Boolean = False
+    Public Property TVShowExtrafanartsJellyfin() As Boolean = False
+    Public Property TVShowFanartJellyfin() As Boolean = False
+    Public Property TVShowNFOJellyfin() As Boolean = False
+    Public Property TVShowPosterJellyfin() As Boolean = False
 
-    '******** XBMC ArtworkDownloader settings **********
-    Public Property TVUseAD() As Boolean = False
-    Public Property TVSeasonLandscapeAD() As Boolean = False
-    Public Property TVShowCharacterArtAD() As Boolean = False
-    Public Property TVShowClearArtAD() As Boolean = False
-    Public Property TVShowClearLogoAD() As Boolean = False
-    Public Property TVShowLandscapeAD() As Boolean = False
+    '******** Jellyfin ArtworkDownloader settings **********
 
-    '********* XBMC Extended Images settings ***********
-    Public Property TVUseExtended() As Boolean = False
-    Public Property TVSeasonLandscapeExtended() As Boolean = False
-    Public Property TVShowCharacterArtExtended() As Boolean = False
-    Public Property TVShowClearArtExtended() As Boolean = False
-    Public Property TVShowClearLogoExtended() As Boolean = False
-    Public Property TVShowKeyartExtended() As Boolean = False
-    Public Property TVShowLandscapeExtended() As Boolean = False
+    '********* Jellyfin Extended Images settings ***********
 
-    '************* XBMC TvTunes settings ***************
+    '************* Jellyfin TvTunes settings ***************
     Public Property TVShowThemeTvTunesEnable() As Boolean = False
     Public Property TVShowThemeTvTunesCustom() As Boolean = False
     Public Property TVShowThemeTvTunesCustomPath() As String = String.Empty
@@ -1053,26 +973,8 @@ Public Class Settings
     Public Property TVShowThemeTvTunesSubDir() As String = String.Empty
 
     '****************** YAMJ settings ******************
-    Public Property TVUseYAMJ() As Boolean = False
-    Public Property TVEpisodeNFOYAMJ() As Boolean = False
-    Public Property TVEpisodePosterYAMJ() As Boolean = False
-    Public Property TVSeasonBannerYAMJ() As Boolean = False
-    Public Property TVSeasonFanartYAMJ() As Boolean = False
-    Public Property TVSeasonPosterYAMJ() As Boolean = False
-    Public Property TVShowBannerYAMJ() As Boolean = False
-    Public Property TVShowFanartYAMJ() As Boolean = False
-    Public Property TVShowNFOYAMJ() As Boolean = False
-    Public Property TVShowPosterYAMJ() As Boolean = False
 
     '***************** Boxee settings ******************
-    Public Property TVUseBoxee() As Boolean = False
-    Public Property TVEpisodeNFOBoxee() As Boolean = False
-    Public Property TVEpisodePosterBoxee() As Boolean = False
-    Public Property TVSeasonPosterBoxee() As Boolean = False
-    Public Property TVShowBannerBoxee() As Boolean = False
-    Public Property TVShowFanartBoxee() As Boolean = False
-    Public Property TVShowNFOBoxee() As Boolean = False
-    Public Property TVShowPosterBoxee() As Boolean = False
 
     '***************** Expert settings ******************
     Public Property TVUseExpert() As Boolean = False
@@ -1163,33 +1065,32 @@ Public Class Settings
         PatchSettings()
 
         'Fix added to avoid to have no movie NFO saved
-        If Not (Master.eSettings.MovieUseBoxee Or Master.eSettings.MovieUseEden Or Master.eSettings.MovieUseExpert Or Master.eSettings.MovieUseFrodo Or Master.eSettings.MovieUseNMJ Or Master.eSettings.MovieUseYAMJ) Then
-            Master.eSettings.MovieUseFrodo = True
-            Master.eSettings.MovieActorThumbsFrodo = True
-            Master.eSettings.MovieExtrafanartsFrodo = True
-            Master.eSettings.MovieExtrathumbsFrodo = True
-            Master.eSettings.MovieFanartFrodo = True
-            Master.eSettings.MovieNFOFrodo = True
-            Master.eSettings.MoviePosterFrodo = True
-            Master.eSettings.MovieTrailerFrodo = True
-            Master.eSettings.MovieScraperXBMCTrailerFormat = True
+        If Not (Master.eSettings.MovieUseExpert Or Master.eSettings.MovieUseJellyfin) Then
+            Master.eSettings.MovieUseJellyfin = True
+            Master.eSettings.MovieActorThumbsJellyfin = True
+            Master.eSettings.MovieExtrafanartsJellyfin = True
+            Master.eSettings.MovieExtrathumbsJellyfin = True
+            Master.eSettings.MovieFanartJellyfin = True
+            Master.eSettings.MovieNFOJellyfin = True
+            Master.eSettings.MoviePosterJellyfin = True
+            Master.eSettings.MovieTrailerJellyfin = True
         End If
 
         'Fix added to avoid to have no tv show NFO saved
-        If Not (Master.eSettings.TVUseBoxee OrElse Master.eSettings.TVUseExpert OrElse Master.eSettings.TVUseFrodo OrElse Master.eSettings.TVUseYAMJ) Then
-            Master.eSettings.TVUseFrodo = True
-            Master.eSettings.TVEpisodeActorThumbsFrodo = True
-            Master.eSettings.TVEpisodeNFOFrodo = True
-            Master.eSettings.TVEpisodePosterFrodo = True
-            Master.eSettings.TVSeasonBannerFrodo = True
-            Master.eSettings.TVSeasonFanartFrodo = True
-            Master.eSettings.TVSeasonPosterFrodo = True
-            Master.eSettings.TVShowActorThumbsFrodo = True
-            Master.eSettings.TVShowBannerFrodo = True
-            Master.eSettings.TVShowExtrafanartsFrodo = True
-            Master.eSettings.TVShowFanartFrodo = True
-            Master.eSettings.TVShowNFOFrodo = True
-            Master.eSettings.TVShowPosterFrodo = True
+        If Not (Master.eSettings.TVUseExpert OrElse Master.eSettings.TVUseJellyfin) Then
+            Master.eSettings.TVUseJellyfin = True
+            Master.eSettings.TVEpisodeActorThumbsJellyfin = True
+            Master.eSettings.TVEpisodeNFOJellyfin = True
+            Master.eSettings.TVEpisodePosterJellyfin = True
+            Master.eSettings.TVSeasonBannerJellyfin = True
+            Master.eSettings.TVSeasonFanartJellyfin = True
+            Master.eSettings.TVSeasonPosterJellyfin = True
+            Master.eSettings.TVShowActorThumbsJellyfin = True
+            Master.eSettings.TVShowBannerJellyfin = True
+            Master.eSettings.TVShowExtrafanartsJellyfin = True
+            Master.eSettings.TVShowFanartJellyfin = True
+            Master.eSettings.TVShowNFOJellyfin = True
+            Master.eSettings.TVShowPosterJellyfin = True
         End If
     End Sub
 
@@ -1226,6 +1127,38 @@ Public Class Settings
             End If
             needsSave = True
         End If
+        If Master.eSettings.Version < 2 Then
+            'Default language changed from "en-US" to "de-DE". Only switch over installations
+            'that still carry the untouched english default - a language the user has chosen
+            'explicitly is never overwritten.
+            If Master.eSettings.GeneralLanguage = "en-US" Then
+                Master.eSettings.GeneralLanguage = "de-DE"
+            End If
+            If Master.eSettings.MovieGeneralLanguage = "en-US" Then
+                Master.eSettings.MovieGeneralLanguage = "de-DE"
+            End If
+            If Master.eSettings.TVGeneralLanguage = "en-US" Then
+                Master.eSettings.TVGeneralLanguage = "de-DE"
+            End If
+            needsSave = True
+        End If
+        If Master.eSettings.Version < 3 Then
+            'The database cleanup after the library update is now on by default. It
+            'removes entries whose files no longer exist, so that the library matches
+            'the files again. Sources that are not reachable are excluded from it.
+            Master.eSettings.MovieCleanDB = True
+            Master.eSettings.MovieSetCleanDB = True
+            Master.eSettings.TVCleanDB = True
+            needsSave = True
+        End If
+        If Master.eSettings.Version < 4 Then
+            'The order and the activation of the data scrapers is now a fixed default instead
+            'of the order in which the module assemblies are loaded (alphabetically). Only the
+            'data scrapers that have not been set by the user are changed - an existing order
+            'or activation that differs from the default is never overwritten.
+            ModulesManager.ApplyDefaultDataScrapers()
+            needsSave = True
+        End If
         If needsSave Then Master.eSettings.Save()
 #Enable Warning BC40000 'The type or member is obsolete.
     End Sub
@@ -1233,15 +1166,26 @@ Public Class Settings
     Public Sub Save()
         'set database version
         Version = _settingsversion
-        Dim xmlWriter As StreamWriter = Nothing
+        'Atomar schreiben: erst in eine Temp-Datei serialisieren, dann ersetzen.
+        'Bricht der Prozess waehrend des Serialisierens ab, bleibt die bisherige
+        'Settings.xml unbeschaedigt - sonst waeren alle Nutzereinstellungen weg.
+        Dim finalPath As String = Path.Combine(Master.SettingsPath, "Settings.xml")
+        Dim tmpPath As String = String.Concat(finalPath, ".tmp")
+        Dim bakPath As String = String.Concat(finalPath, ".bak")
         Try
-            xmlWriter = New StreamWriter(Path.Combine(Master.SettingsPath, "Settings.xml"))
-            Dim xmlSerializer As New XmlSerializer(GetType(Settings))
-            xmlSerializer.Serialize(xmlWriter, Master.eSettings)
+            Using xmlWriter As New StreamWriter(tmpPath, False, New System.Text.UTF8Encoding(False))
+                Dim xmlSerializer As New XmlSerializer(GetType(Settings))
+                xmlSerializer.Serialize(xmlWriter, Master.eSettings)
+            End Using
+            If File.Exists(finalPath) Then
+                If File.Exists(bakPath) Then File.Delete(bakPath)
+                File.Replace(tmpPath, finalPath, bakPath, True)
+            Else
+                File.Move(tmpPath, finalPath)
+            End If
         Catch ex As Exception
             _Logger.Error(ex, New StackFrame().GetMethod().Name)
         End Try
-        If xmlWriter IsNot Nothing Then xmlWriter.Close()
     End Sub
 
     Public Sub SetDefaultsForLists(ByVal type As Enums.DefaultType, ByVal force As Boolean)
@@ -1425,76 +1369,60 @@ Public Class Settings
     Public Function GetMovieSetsArtworkPaths() As List(Of String)
         Dim Paths As New List(Of String)
         If Not String.IsNullOrEmpty(MovieSetPathExpertSingle) Then Paths.Add(MovieSetPathExpertSingle)
-        If Not String.IsNullOrEmpty(MovieSetPathExtended) Then Paths.Add(MovieSetPathExtended)
-        If Not String.IsNullOrEmpty(MovieSetPathMSAA) Then Paths.Add(MovieSetPathMSAA)
         Paths = Paths.Distinct().ToList() 'remove double entries
         Return Paths
     End Function
 
     Public Function MovieActorThumbsAnyEnabled() As Boolean
-        Return MovieActorThumbsEden OrElse MovieActorThumbsFrodo OrElse
-            (MovieUseExpert AndAlso ((MovieActorThumbsExpertBDMV AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertBDMV)) OrElse (MovieActorThumbsExpertMulti AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertMulti)) OrElse (MovieActorThumbsExpertSingle AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertSingle)) OrElse (MovieActorThumbsExpertVTS AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertVTS))))
+        Return MovieActorThumbsJellyfin OrElse (MovieUseExpert AndAlso ((MovieActorThumbsExpertBDMV AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertBDMV)) OrElse (MovieActorThumbsExpertMulti AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertMulti)) OrElse (MovieActorThumbsExpertSingle AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertSingle)) OrElse (MovieActorThumbsExpertVTS AndAlso Not String.IsNullOrEmpty(MovieActorThumbsExtExpertVTS))))
     End Function
 
     Public Function MovieBannerAnyEnabled() As Boolean
-        Return MovieBannerAD OrElse MovieBannerExtended OrElse MovieBannerNMJ OrElse MovieBannerYAMJ OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieBannerExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieBannerExpertMulti) OrElse Not String.IsNullOrEmpty(MovieBannerExpertSingle) OrElse Not String.IsNullOrEmpty(MovieBannerExpertVTS)))
+        Return (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieBannerExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieBannerExpertMulti) OrElse Not String.IsNullOrEmpty(MovieBannerExpertSingle) OrElse Not String.IsNullOrEmpty(MovieBannerExpertVTS)))
     End Function
 
     Public Function MovieClearArtAnyEnabled() As Boolean
-        Return MovieClearArtAD OrElse MovieClearArtExtended OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieClearArtExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieClearArtExpertMulti) OrElse Not String.IsNullOrEmpty(MovieClearArtExpertSingle) OrElse Not String.IsNullOrEmpty(MovieClearArtExpertVTS)))
+        Return (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieClearArtExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieClearArtExpertMulti) OrElse Not String.IsNullOrEmpty(MovieClearArtExpertSingle) OrElse Not String.IsNullOrEmpty(MovieClearArtExpertVTS)))
     End Function
 
     Public Function MovieClearLogoAnyEnabled() As Boolean
-        Return MovieClearLogoAD OrElse MovieClearLogoExtended OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieClearLogoExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieClearLogoExpertMulti) OrElse Not String.IsNullOrEmpty(MovieClearLogoExpertSingle) OrElse Not String.IsNullOrEmpty(MovieClearLogoExpertVTS)))
+        Return (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieClearLogoExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieClearLogoExpertMulti) OrElse Not String.IsNullOrEmpty(MovieClearLogoExpertSingle) OrElse Not String.IsNullOrEmpty(MovieClearLogoExpertVTS)))
     End Function
 
     Public Function MovieDiscArtAnyEnabled() As Boolean
-        Return MovieDiscArtAD OrElse MovieDiscArtExtended OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieDiscArtExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieDiscArtExpertMulti) OrElse Not String.IsNullOrEmpty(MovieDiscArtExpertSingle) OrElse Not String.IsNullOrEmpty(MovieDiscArtExpertVTS)))
+        Return (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieDiscArtExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieDiscArtExpertMulti) OrElse Not String.IsNullOrEmpty(MovieDiscArtExpertSingle) OrElse Not String.IsNullOrEmpty(MovieDiscArtExpertVTS)))
     End Function
 
     Public Function MovieExtrafanartsAnyEnabled() As Boolean
-        Return MovieExtrafanartsEden OrElse MovieExtrafanartsFrodo OrElse
-            (MovieUseExpert AndAlso (MovieExtrafanartsExpertBDMV OrElse MovieExtrafanartsExpertSingle OrElse MovieExtrafanartsExpertVTS))
+        Return MovieExtrafanartsJellyfin OrElse (MovieUseExpert AndAlso (MovieExtrafanartsExpertBDMV OrElse MovieExtrafanartsExpertSingle OrElse MovieExtrafanartsExpertVTS))
     End Function
 
     Public Function MovieExtrathumbsAnyEnabled() As Boolean
-        Return MovieExtrathumbsEden OrElse MovieExtrathumbsFrodo OrElse
-            (MovieUseExpert AndAlso (MovieExtrathumbsExpertBDMV OrElse MovieExtrathumbsExpertSingle OrElse MovieExtrathumbsExpertVTS))
+        Return MovieExtrathumbsJellyfin OrElse (MovieUseExpert AndAlso (MovieExtrathumbsExpertBDMV OrElse MovieExtrathumbsExpertSingle OrElse MovieExtrathumbsExpertVTS))
     End Function
 
     Public Function MovieFanartAnyEnabled() As Boolean
-        Return MovieFanartBoxee OrElse MovieFanartEden OrElse MovieFanartFrodo OrElse MovieFanartNMJ OrElse MovieFanartYAMJ OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieFanartExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieFanartExpertMulti) OrElse Not String.IsNullOrEmpty(MovieFanartExpertSingle) OrElse Not String.IsNullOrEmpty(MovieFanartExpertVTS)))
+        Return MovieFanartJellyfin OrElse (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieFanartExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieFanartExpertMulti) OrElse Not String.IsNullOrEmpty(MovieFanartExpertSingle) OrElse Not String.IsNullOrEmpty(MovieFanartExpertVTS)))
     End Function
 
     Public Function MovieKeyartAnyEnabled() As Boolean
-        Return MovieKeyartExtended OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieKeyartExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieKeyartExpertMulti) OrElse Not String.IsNullOrEmpty(MovieKeyartExpertSingle) OrElse Not String.IsNullOrEmpty(MovieKeyartExpertVTS)))
+        Return (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieKeyartExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieKeyartExpertMulti) OrElse Not String.IsNullOrEmpty(MovieKeyartExpertSingle) OrElse Not String.IsNullOrEmpty(MovieKeyartExpertVTS)))
     End Function
 
     Public Function MovieLandscapeAnyEnabled() As Boolean
-        Return MovieLandscapeAD OrElse MovieLandscapeExtended OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieLandscapeExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieLandscapeExpertMulti) OrElse Not String.IsNullOrEmpty(MovieLandscapeExpertSingle) OrElse Not String.IsNullOrEmpty(MovieLandscapeExpertVTS)))
+        Return (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieLandscapeExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieLandscapeExpertMulti) OrElse Not String.IsNullOrEmpty(MovieLandscapeExpertSingle) OrElse Not String.IsNullOrEmpty(MovieLandscapeExpertVTS)))
     End Function
 
     Public Function MovieMissingItemsAnyEnabled() As Boolean
-        Return MovieMissingBanner OrElse MovieMissingClearArt OrElse MovieMissingClearLogo OrElse MovieMissingDiscArt OrElse MovieMissingExtrafanarts OrElse
-            MovieMissingExtrathumbs OrElse MovieMissingFanart OrElse MovieMissingLandscape OrElse MovieMissingNFO OrElse MovieMissingPoster OrElse
-            MovieMissingSubtitles OrElse MovieMissingTheme OrElse MovieMissingTrailer
+        Return MovieMissingBanner OrElse MovieMissingClearArt OrElse MovieMissingClearLogo OrElse MovieMissingDiscArt OrElse MovieMissingExtrafanarts OrElse MovieMissingExtrathumbs OrElse MovieMissingFanart OrElse MovieMissingLandscape OrElse MovieMissingNFO OrElse MovieMissingPoster OrElse MovieMissingSubtitles OrElse MovieMissingTheme OrElse MovieMissingTrailer
     End Function
 
     Public Function MovieNFOAnyEnabled() As Boolean
-        Return MovieNFOBoxee OrElse MovieNFOEden OrElse MovieNFOFrodo OrElse MovieNFONMJ OrElse MovieNFOYAMJ OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieNFOExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieNFOExpertMulti) OrElse Not String.IsNullOrEmpty(MovieNFOExpertSingle) OrElse Not String.IsNullOrEmpty(MovieNFOExpertVTS)))
+        Return MovieNFOJellyfin OrElse (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieNFOExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieNFOExpertMulti) OrElse Not String.IsNullOrEmpty(MovieNFOExpertSingle) OrElse Not String.IsNullOrEmpty(MovieNFOExpertVTS)))
     End Function
 
     Public Function MoviePosterAnyEnabled() As Boolean
-        Return MoviePosterBoxee OrElse MoviePosterEden OrElse MoviePosterFrodo OrElse MoviePosterNMJ OrElse MoviePosterYAMJ OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MoviePosterExpertBDMV) OrElse Not String.IsNullOrEmpty(MoviePosterExpertMulti) OrElse Not String.IsNullOrEmpty(MoviePosterExpertSingle) OrElse Not String.IsNullOrEmpty(MoviePosterExpertVTS)))
+        Return MoviePosterJellyfin OrElse (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MoviePosterExpertBDMV) OrElse Not String.IsNullOrEmpty(MoviePosterExpertMulti) OrElse Not String.IsNullOrEmpty(MoviePosterExpertSingle) OrElse Not String.IsNullOrEmpty(MoviePosterExpertVTS)))
     End Function
 
     Public Function MovieThemeAnyEnabled() As Boolean
@@ -1502,60 +1430,39 @@ Public Class Settings
     End Function
 
     Public Function MovieTrailerAnyEnabled() As Boolean
-        Return MovieTrailerEden OrElse MovieTrailerFrodo OrElse MovieTrailerNMJ OrElse MovieTrailerYAMJ OrElse
-            (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieTrailerExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieTrailerExpertMulti) OrElse Not String.IsNullOrEmpty(MovieTrailerExpertSingle) OrElse Not String.IsNullOrEmpty(MovieTrailerExpertVTS)))
+        Return MovieTrailerJellyfin OrElse (MovieUseExpert AndAlso (Not String.IsNullOrEmpty(MovieTrailerExpertBDMV) OrElse Not String.IsNullOrEmpty(MovieTrailerExpertMulti) OrElse Not String.IsNullOrEmpty(MovieTrailerExpertSingle) OrElse Not String.IsNullOrEmpty(MovieTrailerExpertVTS)))
     End Function
 
     Public Function MovieSetBannerAnyEnabled() As Boolean
-        Return (MovieSetBannerExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetBannerMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetBannerMSAA AndAlso Not String.IsNullOrEmpty(MovieSetPathMSAA)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetPosterExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetPosterExpertSingle))
     End Function
 
     Public Function MovieSetClearArtAnyEnabled() As Boolean
-        Return (MovieSetClearArtExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetClearArtMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetClearArtMSAA AndAlso Not String.IsNullOrEmpty(MovieSetPathMSAA)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetClearArtExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetClearArtExpertSingle))
     End Function
 
     Public Function MovieSetClearLogoAnyEnabled() As Boolean
-        Return (MovieSetClearLogoExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetClearLogoMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetClearLogoMSAA AndAlso Not String.IsNullOrEmpty(MovieSetPathMSAA)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetClearLogoExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetClearLogoExpertSingle))
     End Function
 
     Public Function MovieSetDiscArtAnyEnabled() As Boolean
-        Return (MovieSetDiscArtExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetDiscArtMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetDiscArtExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetDiscArtExpertSingle))
     End Function
 
     Public Function MovieSetFanartAnyEnabled() As Boolean
-        Return (MovieSetFanartExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetFanartMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetFanartMSAA AndAlso Not String.IsNullOrEmpty(MovieSetPathMSAA)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetFanartExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetFanartExpertSingle))
     End Function
 
     Public Function MovieSetKeyartAnyEnabled() As Boolean
-        Return (MovieSetKeyartExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetKeyartMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetKeyartExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetKeyartExpertSingle))
     End Function
 
     Public Function MovieSetLandscapeAnyEnabled() As Boolean
-        Return (MovieSetLandscapeExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetLandscapeMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetLandscapeMSAA AndAlso Not String.IsNullOrEmpty(MovieSetPathMSAA)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetLandscapeExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetLandscapeExpertSingle))
     End Function
 
     Public Function MovieSetMissingItemsAnyEnabled() As Boolean
-        Return MovieSetMissingBanner OrElse MovieSetMissingClearArt OrElse MovieSetMissingClearLogo OrElse MovieSetMissingDiscArt OrElse
-            MovieSetMissingFanart OrElse MovieSetMissingLandscape OrElse MovieSetMissingNFO OrElse MovieSetMissingPoster
+        Return MovieSetMissingBanner OrElse MovieSetMissingClearArt OrElse MovieSetMissingClearLogo OrElse MovieSetMissingDiscArt OrElse MovieSetMissingFanart OrElse MovieSetMissingLandscape OrElse MovieSetMissingNFO OrElse MovieSetMissingPoster
     End Function
 
     Public Function MovieSetNFOAnyEnabled() As Boolean
@@ -1563,39 +1470,31 @@ Public Class Settings
     End Function
 
     Public Function MovieSetPosterAnyEnabled() As Boolean
-        Return (MovieSetPosterExtended AndAlso Not String.IsNullOrEmpty(MovieSetPathExtended)) OrElse
-            (MovieSetPosterMatrix AndAlso Not String.IsNullOrEmpty(MovieSetPathMatrix)) OrElse
-            (MovieSetPosterMSAA AndAlso Not String.IsNullOrEmpty(MovieSetPathMSAA)) OrElse
-            (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetPosterExpertSingle))
+        Return (MovieSetUseExpert AndAlso Not String.IsNullOrEmpty(MovieSetPathExpertSingle) AndAlso Not String.IsNullOrEmpty(MovieSetPosterExpertSingle))
     End Function
 
     Public Function TVAllSeasonsAnyEnabled() As Boolean
-        Return TVAllSeasonsBannerAnyEnabled() OrElse TVAllSeasonsFanartAnyEnabled() OrElse TVAllSeasonsLandscapeAnyEnabled() OrElse TVAllSeasonsPosterAnyEnabled()
+        Return TVAllSeasonsBannerAnyEnabled OrElse TVAllSeasonsFanartAnyEnabled OrElse TVAllSeasonsLandscapeAnyEnabled OrElse TVAllSeasonsPosterAnyEnabled
     End Function
 
     Public Function TVAllSeasonsBannerAnyEnabled() As Boolean
-        Return TVSeasonBannerFrodo OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsBannerExpert))
+        Return TVSeasonBannerJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsBannerExpert))
     End Function
 
     Public Function TVAllSeasonsFanartAnyEnabled() As Boolean
-        Return TVSeasonFanartFrodo OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsFanartExpert))
+        Return TVSeasonFanartJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsFanartExpert))
     End Function
 
     Public Function TVAllSeasonsLandscapeAnyEnabled() As Boolean
-        Return TVSeasonLandscapeAD OrElse TVSeasonLandscapeExtended OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsLandscapeExpert))
+        Return (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsLandscapeExpert))
     End Function
 
     Public Function TVAllSeasonsPosterAnyEnabled() As Boolean
-        Return TVSeasonPosterFrodo OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsPosterExpert))
+        Return TVSeasonPosterJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVAllSeasonsPosterExpert))
     End Function
 
     Public Function TVEpisodeActorThumbsAnyEnabled() As Boolean
-        Return TVEpisodeActorThumbsFrodo OrElse
-            (TVUseExpert AndAlso TVEpisodeActorThumbsExpert AndAlso Not String.IsNullOrEmpty(TVEpisodeActorThumbsExtExpert))
+        Return TVEpisodeActorThumbsJellyfin OrElse (TVUseExpert AndAlso TVEpisodeActorThumbsExpert AndAlso Not String.IsNullOrEmpty(TVEpisodeActorThumbsExtExpert))
     End Function
 
     Public Function TVEpisodeFanartAnyEnabled() As Boolean
@@ -1603,94 +1502,75 @@ Public Class Settings
     End Function
 
     Public Function TVEpisodeNFOAnyEnabled() As Boolean
-        Return TVEpisodeNFOBoxee OrElse TVEpisodeNFOFrodo OrElse TVEpisodeNFOYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVEpisodeNFOExpert))
+        Return TVEpisodeNFOJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVEpisodeNFOExpert))
     End Function
 
     Public Function TVEpisodePosterAnyEnabled() As Boolean
-        Return TVEpisodePosterBoxee OrElse TVEpisodePosterFrodo OrElse TVEpisodePosterYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVEpisodePosterExpert))
+        Return TVEpisodePosterJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVEpisodePosterExpert))
     End Function
 
     Public Function TVSeasonBannerAnyEnabled() As Boolean
-        Return TVSeasonBannerFrodo OrElse TVSeasonBannerYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonBannerExpert))
+        Return TVSeasonBannerJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonBannerExpert))
     End Function
 
     Public Function TVSeasonFanartAnyEnabled() As Boolean
-        Return TVSeasonFanartFrodo OrElse TVSeasonFanartYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonFanartExpert))
+        Return TVSeasonFanartJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonFanartExpert))
     End Function
 
     Public Function TVSeasonLandscapeAnyEnabled() As Boolean
-        Return TVSeasonLandscapeAD OrElse TVSeasonLandscapeExtended OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonLandscapeExpert))
+        Return (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonLandscapeExpert))
     End Function
 
     Public Function TVSeasonPosterAnyEnabled() As Boolean
-        Return TVSeasonPosterBoxee OrElse TVSeasonPosterFrodo OrElse TVSeasonPosterYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonPosterExpert))
+        Return TVSeasonPosterJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVSeasonPosterExpert))
     End Function
 
     Public Function TVShowActorThumbsAnyEnabled() As Boolean
-        Return TVShowActorThumbsFrodo OrElse
-            (TVUseExpert AndAlso TVShowActorThumbsExpert AndAlso Not String.IsNullOrEmpty(TVShowActorThumbsExtExpert))
+        Return TVShowActorThumbsJellyfin OrElse (TVUseExpert AndAlso TVShowActorThumbsExpert AndAlso Not String.IsNullOrEmpty(TVShowActorThumbsExtExpert))
     End Function
 
     Public Function TVShowBannerAnyEnabled() As Boolean
-        Return TVShowBannerBoxee OrElse TVShowBannerFrodo OrElse TVShowBannerYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowBannerExpert))
+        Return TVShowBannerJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowBannerExpert))
     End Function
 
     Public Function TVShowCharacterArtAnyEnabled() As Boolean
-        Return TVShowCharacterArtAD OrElse TVShowCharacterArtExtended OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowCharacterArtExpert))
+        Return (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowCharacterArtExpert))
     End Function
 
     Public Function TVShowClearArtAnyEnabled() As Boolean
-        Return TVShowClearArtAD OrElse TVShowClearArtExtended OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowClearArtExpert))
+        Return (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowClearArtExpert))
     End Function
 
     Public Function TVShowClearLogoAnyEnabled() As Boolean
-        Return TVShowClearLogoAD OrElse TVShowClearLogoExtended OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowClearLogoExpert))
+        Return (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowClearLogoExpert))
     End Function
 
     Public Function TVShowExtrafanartsAnyEnabled() As Boolean
-        Return TVShowExtrafanartsFrodo OrElse
-            (TVUseExpert AndAlso TVShowExtrafanartsExpert)
+        Return TVShowExtrafanartsJellyfin OrElse (TVUseExpert AndAlso TVShowExtrafanartsExpert)
     End Function
 
     Public Function TVShowFanartAnyEnabled() As Boolean
-        Return TVShowFanartBoxee OrElse TVShowFanartFrodo OrElse TVShowFanartYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowFanartExpert))
+        Return TVShowFanartJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowFanartExpert))
     End Function
 
     Public Function TVShowKeyartAnyEnabled() As Boolean
-        Return TVShowKeyartExtended OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowKeyartExpert))
+        Return (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowKeyartExpert))
     End Function
 
     Public Function TVShowLandscapeAnyEnabled() As Boolean
-        Return TVShowLandscapeAD OrElse TVShowLandscapeExtended OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowLandscapeExpert))
+        Return (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowLandscapeExpert))
     End Function
 
     Public Function TVShowMissingItemsAnyEnabled() As Boolean
-        Return TVShowMissingBanner OrElse TVShowMissingCharacterArt OrElse TVShowMissingClearArt OrElse TVShowMissingClearLogo OrElse
-            TVShowMissingExtrafanarts OrElse TVShowMissingFanart OrElse TVShowMissingLandscape OrElse TVShowMissingNFO OrElse
-            TVShowMissingPoster OrElse TVShowMissingTheme
+        Return TVShowMissingBanner OrElse TVShowMissingCharacterArt OrElse TVShowMissingClearArt OrElse TVShowMissingClearLogo OrElse TVShowMissingExtrafanarts OrElse TVShowMissingFanart OrElse TVShowMissingLandscape OrElse TVShowMissingNFO OrElse TVShowMissingPoster OrElse TVShowMissingTheme
     End Function
 
     Public Function TVShowNFOAnyEnabled() As Boolean
-        Return TVShowNFOBoxee OrElse TVShowNFOFrodo OrElse TVShowNFOYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowNFOExpert))
+        Return TVShowNFOJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowNFOExpert))
     End Function
 
     Public Function TVShowPosterAnyEnabled() As Boolean
-        Return TVShowPosterBoxee OrElse TVShowPosterFrodo OrElse TVShowPosterYAMJ OrElse
-            (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowPosterExpert))
+        Return TVShowPosterJellyfin OrElse (TVUseExpert AndAlso Not String.IsNullOrEmpty(TVShowPosterExpert))
     End Function
 
     Public Function TvShowThemeAnyEnabled() As Boolean

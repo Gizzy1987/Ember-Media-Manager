@@ -4,7 +4,7 @@
 
 ## Purpose
 
-The local SQLite database holds the entire library state: movies, movie sets, TV shows, seasons, episodes and all related data (persons, genres, studios, countries, ratings, artwork, tags, external IDs, file and stream information, source directories). The tables follow the Kodi naming convention (`MyVideos`), keeping the library mappable to Kodi-compatible structures.
+The local SQLite database holds the entire library state: movies, movie sets, TV shows, seasons, episodes and all related data (persons, genres, studios, countries, ratings, artwork, tags, external IDs, file and stream information, source directories). The tables follow the legacy `MyVideos` naming convention inherited from earlier Ember versions.
 
 ## How it works
 

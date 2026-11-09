@@ -86,7 +86,9 @@ Public Class dlgEdit_TVShow
 
             Dim iBackground As New Bitmap(pnlTop.Width, pnlTop.Height)
             Using g As Graphics = Graphics.FromImage(iBackground)
-                g.FillRectangle(New Drawing2D.LinearGradientBrush(pnlTop.ClientRectangle, Color.SteelBlue, Color.LightSteelBlue, Drawing2D.LinearGradientMode.Horizontal), pnlTop.ClientRectangle)
+                Using br As New Drawing2D.LinearGradientBrush(pnlTop.ClientRectangle, Color.SteelBlue, Color.LightSteelBlue, Drawing2D.LinearGradientMode.Horizontal)
+                    g.FillRectangle(br, pnlTop.ClientRectangle)
+                End Using
                 pnlTop.BackgroundImage = iBackground
             End Using
 

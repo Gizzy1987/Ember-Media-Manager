@@ -15,7 +15,7 @@ Overview of all documented feature areas of Ember Media Manager.
 
 ## Integrations
 
-- [Kodi Interface](kodi/index.md) — synchronization between Ember and Kodi libraries.
+- [Jellyfin Interface](jellyfin/index.md) — managing Jellyfin hosts and triggering a library refresh.
 - [Trakt.tv](trakt/index.md) — syncing watched state, lists and ratings with a Trakt account.
 
 ## Tools & Administration

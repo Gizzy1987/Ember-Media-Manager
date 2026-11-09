@@ -1042,11 +1042,11 @@ Public Class MediaExporter
             If File.Exists(strIndexFile) Then
                 File.Delete(strIndexFile)
             End If
-            Dim myStream As Stream = File.OpenWrite(strIndexFile)
-            If myStream IsNot Nothing Then
-                myStream.Write(Encoding.ASCII.GetBytes(HTMLBody.ToString), 0, HTMLBody.ToString.Length)
-                myStream.Close()
-            End If
+            Dim bytes As Byte() = Encoding.UTF8.GetBytes(HTMLBody.ToString)
+            Using myStream As New FileStream(strIndexFile, FileMode.Create, FileAccess.Write, FileShare.None)
+                myStream.Write(bytes, 0, bytes.Length)
+                myStream.Flush()
+            End Using
             Return strIndexFile
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)

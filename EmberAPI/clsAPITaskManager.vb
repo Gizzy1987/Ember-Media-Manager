@@ -27,7 +27,9 @@ Public Class TaskManager
     Shared logger As Logger = LogManager.GetCurrentClassLogger()
 
     Private _bHasChanged As Boolean
-    Private TaskList As New Queue(Of TaskItem)
+    'Die Aufgabenliste wird vom UI-Thread gefuellt und vom Worker-Thread geleert.
+    'Queue(Of T) ist nicht threadsicher, daher wird eine threadsichere Struktur verwendet.
+    Private TaskList As New System.Collections.Concurrent.ConcurrentQueue(Of TaskItem)
 
     Friend WithEvents bwTaskManager As New ComponentModel.BackgroundWorker
 
@@ -61,10 +63,11 @@ Public Class TaskManager
     End Sub
 
     Private Sub bwTaskManager_DoWork(ByVal sender As Object, ByVal e As ComponentModel.DoWorkEventArgs) Handles bwTaskManager.DoWork
+        Dim currTask As TaskItem = New TaskItem()
         While TaskList.Count > 0
             If bwTaskManager.CancellationPending Then Return
 
-            Dim currTask As TaskItem = TaskList.Dequeue()
+            If Not TaskList.TryDequeue(currTask) Then Exit While
 
             Select Case currTask.TaskType
                 Case Enums.TaskManagerType.DataFields_ClearOrReplace
@@ -121,6 +124,20 @@ Public Class TaskManager
     End Sub
 
     Private Sub bwTaskManager_RunWorkerCompleted(ByVal sender As Object, ByVal e As ComponentModel.RunWorkerCompletedEventArgs) Handles bwTaskManager.RunWorkerCompleted
+        If e.Error IsNot Nothing Then
+            'Ein Fehler im Worker beendet die Verarbeitung: die restlichen Aufgaben
+            'in der Queue wuerden nie ausgefuehrt. Der User muss davon erfahren.
+            logger.Error(e.Error, New StackFrame().GetMethod().Name)
+            Try
+                Dim strMessage As String = Master.eLang.GetString(969, "One or more Task(s) failed.{0}Please check log for more informations.").Replace("{0}", Environment.NewLine)
+                Windows.Forms.MessageBox.Show(String.Concat(strMessage, Environment.NewLine, e.Error.Message),
+                                              Master.eLang.GetString(816, "An Error Has Occurred"),
+                                              Windows.Forms.MessageBoxButtons.OK,
+                                              Windows.Forms.MessageBoxIcon.Error)
+            Catch ex As Exception
+                logger.Error(ex, New StackFrame().GetMethod().Name)
+            End Try
+        End If
         RaiseEvent ProgressUpdate(New ProgressValue With {.EventType = Enums.TaskManagerEventType.TaskManagerEnded})
     End Sub
 
@@ -403,13 +420,15 @@ Public Class TaskManager
 
             Case Enums.ContentType.Movie
                 Using SQLcommand As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                    SQLcommand.CommandText = "SELECT ListTitle, FanartPath FROM movielist WHERE FanartPath IS NOT NULL AND NOT FanartPath='' ORDER BY ListTitle;"
+                    'Die Spalte ListTitle existiert in der View movielist nicht mehr
+                    '(sie wurde mit DB v47 entfernt) - der Titel kommt aus der movie-Tabelle.
+                    SQLcommand.CommandText = "SELECT Title, FanartPath FROM movielist WHERE FanartPath IS NOT NULL AND NOT FanartPath='' ORDER BY Title;"
                     Using SQLreader As SQLite.SQLiteDataReader = SQLcommand.ExecuteReader()
                         While SQLreader.Read
                             If bwTaskManager.CancellationPending Then Return
                             bwTaskManager.ReportProgress(-1, New ProgressValue With {
                                                          .EventType = Enums.TaskManagerEventType.SimpleMessage,
-                                                         .Message = SQLreader("ListTitle").ToString})
+                                                         .Message = SQLreader("Title").ToString})
 
                             FileUtils.Common.CopyFanartToBackdropsPath(SQLreader("FanartPath").ToString, Enums.ContentType.Movie)
                         End While
@@ -831,12 +850,12 @@ Public Class TaskManager
                     If bwTaskManager.CancellationPending Then Return
 
                     Using SQLCommand_Update As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                        SQLCommand_Update.CommandText = "UPDATE movie SET Mark = (?) WHERE idMovie = (?);"
+                        SQLCommand_Update.CommandText = "UPDATE movie SET Mark = (?), New = 0 WHERE idMovie = (?);"
                         Dim par_Mark As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_Mark", DbType.Boolean, 0, "Mark")
                         Dim par_ID As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_ID", DbType.Int64, 0, "idMovie")
 
                         Using SQLCommand_Get As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM movie WHERE idMovie = {0} AND Mark = {1};", tID, If(tTaskItem.CommonBooleanValue, 0, 1))
+                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM movie WHERE idMovie = {0}{1};", tID, If(tTaskItem.CommonBooleanValue, " AND Mark = 0", ""))
                             Using SQLReader_Get As SQLite.SQLiteDataReader = SQLCommand_Get.ExecuteReader()
                                 While SQLReader_Get.Read
                                     bwTaskManager.ReportProgress(-1, New ProgressValue With {
@@ -860,12 +879,12 @@ Public Class TaskManager
                     If bwTaskManager.CancellationPending Then Return
 
                     Using SQLCommand_Update As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                        SQLCommand_Update.CommandText = "UPDATE sets SET Mark = (?) WHERE idSet = (?);"
+                        SQLCommand_Update.CommandText = "UPDATE sets SET Mark = (?), New = 0 WHERE idSet = (?);"
                         Dim par_Mark As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_Mark", DbType.Boolean, 0, "Mark")
                         Dim par_ID As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_ID", DbType.Int64, 0, "idSet")
 
                         Using SQLCommand_Get As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM sets WHERE idSet = {0} AND Mark = {1};", tID, If(tTaskItem.CommonBooleanValue, 0, 1))
+                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM sets WHERE idSet = {0}{1};", tID, If(tTaskItem.CommonBooleanValue, " AND Mark = 0", ""))
                             Using SQLReader_Get As SQLite.SQLiteDataReader = SQLCommand_Get.ExecuteReader()
                                 While SQLReader_Get.Read
                                     bwTaskManager.ReportProgress(-1, New ProgressValue With {
@@ -891,12 +910,12 @@ Public Class TaskManager
                     If bwTaskManager.CancellationPending Then Return
 
                     Using SQLCommand_Update As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                        SQLCommand_Update.CommandText = "UPDATE episode SET Mark = (?) WHERE idEpisode = (?);"
+                        SQLCommand_Update.CommandText = "UPDATE episode SET Mark = (?), New = 0 WHERE idEpisode = (?);"
                         Dim par_Mark As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_Mark", DbType.Boolean, 0, "Mark")
                         Dim par_ID As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_ID", DbType.Int64, 0, "idEpisode")
 
                         Using SQLCommand_Get As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM episode WHERE idEpisode = {0} AND Mark = {1};", tID, If(tTaskItem.CommonBooleanValue, 0, 1))
+                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM episode WHERE idEpisode = {0}{1};", tID, If(tTaskItem.CommonBooleanValue, " AND Mark = 0", ""))
                             Using SQLReader_Get As SQLite.SQLiteDataReader = SQLCommand_Get.ExecuteReader()
                                 While SQLReader_Get.Read
                                     bwTaskManager.ReportProgress(-1, New ProgressValue With {
@@ -973,12 +992,12 @@ Public Class TaskManager
 
                     'now proceed the season
                     Using SQLCommand_Update As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                        SQLCommand_Update.CommandText = "UPDATE seasons SET Mark = (?) WHERE idSeason = (?);"
+                        SQLCommand_Update.CommandText = "UPDATE seasons SET Mark = (?), New = 0 WHERE idSeason = (?);"
                         Dim par_Mark As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_Mark", DbType.Boolean, 0, "Mark")
                         Dim par_ID As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_ID", DbType.Int64, 0, "idSeason")
 
                         Using SQLCommand_Get As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM seasons WHERE idSeason = {0} AND Mark = {1};", tID, If(tTaskItem.CommonBooleanValue, 0, 1))
+                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM seasons WHERE idSeason = {0}{1};", tID, If(tTaskItem.CommonBooleanValue, " AND Mark = 0", ""))
                             Using SQLReader_Get As SQLite.SQLiteDataReader = SQLCommand_Get.ExecuteReader()
                                 While SQLReader_Get.Read
                                     bwTaskManager.ReportProgress(-1, New ProgressValue With {
@@ -1032,12 +1051,12 @@ Public Class TaskManager
 
                     'now proceed the tv show
                     Using SQLCommand_Update As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                        SQLCommand_Update.CommandText = "UPDATE tvshow SET Mark = (?) WHERE idShow = (?);"
+                        SQLCommand_Update.CommandText = "UPDATE tvshow SET Mark = (?), New = 0 WHERE idShow = (?);"
                         Dim par_Mark As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_Mark", DbType.Boolean, 0, "Mark")
                         Dim par_ID As SQLite.SQLiteParameter = SQLCommand_Update.Parameters.Add("par_ID", DbType.Int64, 0, "idShow")
 
                         Using SQLCommand_Get As SQLite.SQLiteCommand = Master.DB.MyVideosDBConn.CreateCommand()
-                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM tvshow WHERE idShow = {0} AND Mark = {1};", tID, If(tTaskItem.CommonBooleanValue, 0, 1))
+                            SQLCommand_Get.CommandText = String.Format("SELECT * FROM tvshow WHERE idShow = {0}{1};", tID, If(tTaskItem.CommonBooleanValue, " AND Mark = 0", ""))
                             Using SQLReader_Get As SQLite.SQLiteDataReader = SQLCommand_Get.ExecuteReader()
                                 While SQLReader_Get.Read
                                     bwTaskManager.ReportProgress(-1, New ProgressValue With {
@@ -1257,7 +1276,9 @@ Public Class TaskManager
             Threading.Thread.Sleep(50)
         End While
         RaiseEvent ProgressUpdate(New ProgressValue With {.EventType = Enums.TaskManagerEventType.TaskManagerStarted, .Message = "TaskManager is running"})
-        bwTaskManager = New ComponentModel.BackgroundWorker
+        'Die vorhandene Worker-Instanz wird wiederverwendet. Eine neue Instanz
+        'wuerde die Handles-Verdrahtung neu ziehen, waehrend die alte Instanz
+        'ihre Handler behalten wuerde.
         bwTaskManager.WorkerReportsProgress = True
         bwTaskManager.WorkerSupportsCancellation = True
         bwTaskManager.RunWorkerAsync()

@@ -81,23 +81,23 @@
       <icon>de/de_0.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:0">
+    <name searchstring="Germany:0" displayname="FSK 0">
       <icon>de/de_0.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:6">
+    <name searchstring="Germany:6" displayname="FSK 6">
       <icon>de/de_6.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:12">
+    <name searchstring="Germany:12" displayname="FSK 12">
       <icon>de/de_12.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:16">
+    <name searchstring="Germany:16" displayname="FSK 16">
       <icon>de/de_16.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:18">
+    <name searchstring="Germany:18" displayname="FSK 18">
       <icon>de/de_18.png</icon>
       <country>germany</country>
     </name>
@@ -183,23 +183,23 @@
       <icon>de/de_0.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:0">
+    <name searchstring="Germany:0" displayname="FSK 0">
       <icon>de/de_0.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:6">
+    <name searchstring="Germany:6" displayname="FSK 6">
       <icon>de/de_6.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:12">
+    <name searchstring="Germany:12" displayname="FSK 12">
       <icon>de/de_12.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:16">
+    <name searchstring="Germany:16" displayname="FSK 16">
       <icon>de/de_16.png</icon>
       <country>germany</country>
     </name>
-    <name searchstring="Germany:18">
+    <name searchstring="Germany:18" displayname="FSK 18">
       <icon>de/de_18.png</icon>
       <country>germany</country>
     </name>

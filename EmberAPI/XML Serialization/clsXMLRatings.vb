@@ -52,6 +52,11 @@ Public Class RatingProperty
     <XmlAttribute("searchstring")>
     Public Property Searchstring() As String = String.Empty
 
+    'Anzeigename fuer das NFO (z.B. "FSK 12" statt "Germany:12"). Optional -
+    'wenn nicht gesetzt, wird der Teil hinter dem Doppelpunkt verwendet.
+    <XmlAttribute("displayname")>
+    Public Property DisplayName() As String = String.Empty
+
 #End Region 'Properties
 
 End Class

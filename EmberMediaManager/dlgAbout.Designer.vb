@@ -27,7 +27,7 @@ Partial Class dlgAbout
         Me.OKButton = New System.Windows.Forms.Button()
         Me.Panel1 = New System.Windows.Forms.Panel()
         Me.pbYouTube = New System.Windows.Forms.PictureBox()
-        Me.pbXBMC = New System.Windows.Forms.PictureBox()
+        Me.pbJellyfin = New System.Windows.Forms.PictureBox()
         Me.pbMPDB = New System.Windows.Forms.PictureBox()
         Me.pbFFMPEG = New System.Windows.Forms.PictureBox()
         Me.pbMI = New System.Windows.Forms.PictureBox()
@@ -37,7 +37,7 @@ Partial Class dlgAbout
         Me.picDisplay = New System.Windows.Forms.PictureBox()
         Me.Panel1.SuspendLayout()
         CType(Me.pbYouTube, System.ComponentModel.ISupportInitialize).BeginInit()
-        CType(Me.pbXBMC, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.pbJellyfin, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.pbMPDB, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.pbFFMPEG, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.pbMI, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -63,7 +63,7 @@ Partial Class dlgAbout
         Me.Panel1.BackColor = System.Drawing.Color.White
         Me.Panel1.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle
         Me.Panel1.Controls.Add(Me.pbYouTube)
-        Me.Panel1.Controls.Add(Me.pbXBMC)
+        Me.Panel1.Controls.Add(Me.pbJellyfin)
         Me.Panel1.Controls.Add(Me.pbMPDB)
         Me.Panel1.Controls.Add(Me.pbFFMPEG)
         Me.Panel1.Controls.Add(Me.pbMI)
@@ -86,16 +86,16 @@ Partial Class dlgAbout
         Me.pbYouTube.TabIndex = 17
         Me.pbYouTube.TabStop = False
         '
-        'pbXBMC
+        'pbJellyfin
         '
-        Me.pbXBMC.Cursor = System.Windows.Forms.Cursors.Hand
-        Me.pbXBMC.Image = CType(resources.GetObject("pbXBMC.Image"), System.Drawing.Image)
-        Me.pbXBMC.Location = New System.Drawing.Point(3, 3)
-        Me.pbXBMC.Name = "pbXBMC"
-        Me.pbXBMC.Size = New System.Drawing.Size(133, 25)
-        Me.pbXBMC.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom
-        Me.pbXBMC.TabIndex = 16
-        Me.pbXBMC.TabStop = False
+        Me.pbJellyfin.Cursor = System.Windows.Forms.Cursors.Hand
+        Me.pbJellyfin.Image = CType(resources.GetObject("pbJellyfin.Image"), System.Drawing.Image)
+        Me.pbJellyfin.Location = New System.Drawing.Point(3, 3)
+        Me.pbJellyfin.Name = "pbJellyfin"
+        Me.pbJellyfin.Size = New System.Drawing.Size(133, 25)
+        Me.pbJellyfin.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom
+        Me.pbJellyfin.TabIndex = 16
+        Me.pbJellyfin.TabStop = False
         '
         'pbMPDB
         '
@@ -196,11 +196,11 @@ Partial Class dlgAbout
         Me.MinimizeBox = False
         Me.Name = "dlgAbout"
         Me.Padding = New System.Windows.Forms.Padding(11, 9, 11, 9)
-        Me.Text = "About Ember Media Manager"
+        Me.Text = "About Ember Media Manager for Jellyfin"
         Me.Panel1.ResumeLayout(False)
         Me.Panel1.PerformLayout()
         CType(Me.pbYouTube, System.ComponentModel.ISupportInitialize).EndInit()
-        CType(Me.pbXBMC, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.pbJellyfin, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.pbMPDB, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.pbFFMPEG, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.pbMI, System.ComponentModel.ISupportInitialize).EndInit()
@@ -219,7 +219,7 @@ Partial Class dlgAbout
     Friend WithEvents pbFFMPEG As System.Windows.Forms.PictureBox
     Friend WithEvents pbMI As System.Windows.Forms.PictureBox
     Friend WithEvents pbMPDB As System.Windows.Forms.PictureBox
-    Friend WithEvents pbXBMC As System.Windows.Forms.PictureBox
+    Friend WithEvents pbJellyfin As System.Windows.Forms.PictureBox
     Public WithEvents picDisplay As System.Windows.Forms.PictureBox
     Friend WithEvents pbYouTube As System.Windows.Forms.PictureBox
 

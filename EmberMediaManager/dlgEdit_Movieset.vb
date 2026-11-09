@@ -27,6 +27,11 @@ Public Class dlgEdit_Movieset
 
     Shared logger As Logger = LogManager.GetCurrentClassLogger()
 
+    'shared font for the list views - never disposed, it is referenced by the
+    'DataGridViewCellStyle instances (creating a new Font on every painted cell
+    'leaks GDI handles)
+    Private Shared ReadOnly DefaultListFont As New Font("Segoe UI", 8.25, FontStyle.Regular)
+
     Private tmpDBElement As Database.DBElement
 
     Private sMovieID As String = String.Empty
@@ -79,7 +84,9 @@ Public Class dlgEdit_Movieset
 
             Dim iBackground As New Bitmap(pnlTop.Width, pnlTop.Height)
             Using g As Graphics = Graphics.FromImage(iBackground)
-                g.FillRectangle(New Drawing2D.LinearGradientBrush(pnlTop.ClientRectangle, Color.SteelBlue, Color.LightSteelBlue, Drawing2D.LinearGradientMode.Horizontal), pnlTop.ClientRectangle)
+                Using br As New Drawing2D.LinearGradientBrush(pnlTop.ClientRectangle, Color.SteelBlue, Color.LightSteelBlue, Drawing2D.LinearGradientMode.Horizontal)
+                    g.FillRectangle(br, pnlTop.ClientRectangle)
+                End Using
                 pnlTop.BackgroundImage = iBackground
             End Using
 
@@ -118,7 +125,7 @@ Public Class dlgEdit_Movieset
             btnSearchMovie.Text = .GetString(528, "Search Movie")
             chkLocked.Text = .GetString(43, "Locked")
             chkMarked.Text = .GetString(48, "Marked")
-            gbMovieAssignment.Text = .GetString(241, "Movie Assignment")
+            gbMovieAssignment.Text = .GetString(1765, "Movie Assignment")
             lblBanner.Text = .GetString(838, "Banner")
             lblClearArt.Text = .GetString(1096, "ClearArt")
             lblClearLogo.Text = .GetString(1097, "ClearLogo")
@@ -129,7 +136,7 @@ Public Class dlgEdit_Movieset
             lblLandscape.Text = .GetString(1059, "Landscape")
             lblLanguage.Text = String.Concat(.GetString(610, "Language"), ":")
             lblMovieSorting.Text = String.Concat(.GetString(665, "Movies sorted by"), ":")
-            lblMoviesInDB.Text = .GetString(242, "Database")
+            lblMoviesInDB.Text = .GetString(1766, "Database")
             lblMoviesInMovieset.Text = .GetString(367, "Movies in Set")
             lblPlot.Text = String.Concat(.GetString(65, "Plot"), ":")
             lblPoster.Text = .GetString(148, "Poster")
@@ -376,7 +383,7 @@ Public Class dlgEdit_Movieset
         If e.ColumnIndex = 3 AndAlso e.RowIndex >= 0 Then
             e.CellStyle.BackColor = Color.White
             e.CellStyle.ForeColor = Color.Black
-            e.CellStyle.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
+            e.CellStyle.Font = DefaultListFont
             e.CellStyle.SelectionForeColor = Color.FromKnownColor(KnownColor.HighlightText)
         End If
     End Sub

@@ -42,6 +42,10 @@ Namespace My
             logger.Info("====Ember Media Manager starting up====")
             logger.Info(String.Format("===={0}", Master.Version))
 
+            'Set the AppUserModelID of the process - without it Windows shows the
+            'tray notifications with the placeholder "NotifyIconGeneratedAumid_..." as title
+            AppUserModelId.Initialize()
+
             Net.ServicePointManager.SecurityProtocol = Net.ServicePointManager.SecurityProtocol Or Net.SecurityProtocolType.Tls11 Or Net.SecurityProtocolType.Tls12
 
             Master.fLoading = New frmSplash
@@ -132,15 +136,28 @@ Namespace My
                 Master.eProfiles.Autoload Then
                 Master.SettingsPath = Master.eProfiles.DefaultProfileFullPath
             Else
-                'show Profile Select dialog
-                Using dProfileSelect As New dlgProfileSelect
-                    If dProfileSelect.ShowDialog() = DialogResult.OK AndAlso Not String.IsNullOrEmpty(dProfileSelect.SelectedProfileFullPath) Then
-                        Master.SettingsPath = dProfileSelect.SelectedProfileFullPath
-                    Else
-                        logger.Info("====Ember Media Manager exiting====")
-                        Environment.Exit(0)
-                    End If
-                End Using
+                'Fresh installation: no profile has been configured yet, so use the
+                '"Default" profile that was created above instead of asking.
+                'The profile select dialog only shows up once profiles.xml exists -
+                'then the user has several profiles to choose from.
+                If Not File.Exists(Profiles._strProfileSettingsPath) AndAlso
+                   Not Master.eProfiles.DefaultProfileSpecified Then
+                    Master.SettingsPath = Path.Combine(Functions.AppPath, "Profiles\Default")
+                    Master.eProfiles.DefaultProfile = "Default"
+                    Master.eProfiles.Autoload = True
+                    Master.eProfiles.SaveSettings()
+                    logger.Info("[Profile] Fresh installation - using profile ""Default"".")
+                Else
+                    'show Profile Select dialog
+                    Using dProfileSelect As New dlgProfileSelect
+                        If dProfileSelect.ShowDialog() = DialogResult.OK AndAlso Not String.IsNullOrEmpty(dProfileSelect.SelectedProfileFullPath) Then
+                            Master.SettingsPath = dProfileSelect.SelectedProfileFullPath
+                        Else
+                            logger.Info("====Ember Media Manager exiting====")
+                            Environment.Exit(0)
+                        End If
+                    End Using
+                End If
             End If
 
             Master.fLoading.SetLoadingMesg("Loading settings...")
@@ -170,7 +187,7 @@ Namespace My
         ''' </summary>
         Private Sub MyApplication_UnhandledException(ByVal sender As Object, ByVal e As Microsoft.VisualBasic.ApplicationServices.UnhandledExceptionEventArgs) Handles Me.UnhandledException
             logger.Error(e.Exception, e.Exception.Source)
-            MessageBox.Show(e.Exception.Message, "Ember Media Manager", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            MessageBox.Show(e.Exception.Message, "Ember Media Manager for Jellyfin", MessageBoxButtons.OK, MessageBoxIcon.Error)
             Application.Log.WriteException(e.Exception, TraceEventType.Critical, "Unhandled Exception.")
         End Sub
 

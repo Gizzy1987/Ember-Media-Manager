@@ -28,4 +28,4 @@ At least one TV show source is configured and the library has been scanned.
 
 ## Result
 
-The show is stored with all seasons and episodes including artwork and metadata in the Kodi-compatible schema.
+The show is stored with all seasons and episodes including artwork and metadata in the Jellyfin-compatible schema.

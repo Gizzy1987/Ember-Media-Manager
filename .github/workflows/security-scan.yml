@@ -35,6 +35,6 @@ jobs:
         # (packages.config is not supported by `dotnet list package --vulnerable`).
         uses: ./.github/actions/security-scan
         with:
-          solution-path: Ember Media Manager.sln
+          solution-path: Ember Media Manager for Jellyfin.sln
           artifact-name: vulnerable-packages-scan
           fail-on-vulnerabilities: 'true'

@@ -170,6 +170,7 @@
     <Compile Include="dlgHelpTips.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="dlgMultiFileQuestion.vb" />
     <Compile Include="dlgRenameManual_TVShow.Designer.vb">
       <DependentUpon>dlgRenameManual_TVShow.vb</DependentUpon>
     </Compile>

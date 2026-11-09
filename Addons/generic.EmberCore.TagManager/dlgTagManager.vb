@@ -86,7 +86,7 @@ Public Class dlgTagManager
         btnCancel.Text = Master.eLang.GetString(167, "Cancel")
         lblCurrentTag.Text = Master.eLang.GetString(368, "None Selected")
         gbMovies.Text = Master.eLang.GetString(36, "Movies")
-        lblTopDetails.Text = Master.eLang.GetString(1374, "Manage XBMC tags")
+        lblTopDetails.Text = Master.eLang.GetString(1374, "Manage Jellyfin tags")
         gbTags.Text = Master.eLang.GetString(9999, "Tags")
         gbMoviesInTag.Text = Master.eLang.GetString(1375, "Movies in tag")
         rdMoviesAll.Text = Master.eLang.GetString(1461, "All movies")

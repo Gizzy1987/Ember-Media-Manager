@@ -393,7 +393,23 @@ Public Class FileManagerExternalModule
                             Next
                             If Not _MySettings.TeraCopy AndAlso doMove Then ModulesManager.Instance.RuntimeObjects.InvokeLoadMedia(New Structures.ScanOrClean With {.TV = True})
                         End If
-                        If _MySettings.TeraCopy Then mTeraCopy.RunTeraCopy()
+                        If _MySettings.TeraCopy Then
+                            mTeraCopy.RunTeraCopy()
+                            'TeraCopy has finished the transfer, so the moved media can now be removed from the database
+                            If doMove Then
+                                If ContentType = Enums.ContentType.Movie Then
+                                    For Each movieID As Long In MediaToWork
+                                        Master.DB.Delete_Movie(movieID, False)
+                                    Next
+                                    ModulesManager.Instance.RuntimeObjects.InvokeLoadMedia(New Structures.ScanOrClean With {.Movies = True})
+                                ElseIf ContentType = Enums.ContentType.TVShow Then
+                                    For Each tShowID As Long In MediaToWork
+                                        Master.DB.Delete_TVShow(tShowID, False)
+                                    Next
+                                    ModulesManager.Instance.RuntimeObjects.InvokeLoadMedia(New Structures.ScanOrClean With {.TV = True})
+                                End If
+                            End If
+                        End If
                     End If
                 End If
             End If

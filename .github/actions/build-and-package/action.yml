@@ -1,6 +1,6 @@
 name: Build and package
 description: >
-  Provisions MSBuild, restores "Ember Media Manager.sln" via the repo-pinned NuGet CLI
+  Provisions MSBuild, restores "Ember Media Manager for Jellyfin.sln" via the repo-pinned NuGet CLI
   (.nuget\NuGet.exe - the legacy packages.config model is not supported by dotnet restore),
   builds it in Release|x64 mode, copies the "EmberMM - Release - x64" output to publish/,
   packages the result as release.zip, and generates the update manifest (update.json:
@@ -27,11 +27,11 @@ runs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Restore dependencies
-      run: .\.nuget\NuGet.exe restore "Ember Media Manager.sln"
+      run: .\.nuget\NuGet.exe restore "Ember Media Manager for Jellyfin.sln"
       shell: pwsh
 
     - name: Build (Release x64)
-      run: msbuild "Ember Media Manager.sln" -p:Configuration=Release -p:Platform=x64
+      run: msbuild "Ember Media Manager for Jellyfin.sln" -p:Configuration=Release -p:Platform=x64
       shell: pwsh
 
     - name: Copy build output to publish
@@ -73,7 +73,7 @@ runs:
 
     - name: Verify publish output
       run: |
-        if (-not (Test-Path 'publish/Ember Media Manager.exe')) {
+        if (-not (Test-Path 'publish/Ember Media Manager for Jellyfin.exe')) {
           throw "publish/ is incomplete: Ember Media Manager.exe is missing."
         }
         if (-not (Test-Path 'publish/version.json')) {
@@ -109,7 +109,7 @@ runs:
 
         $manifest = [ordered]@{
           version      = $version
-          releaseNotes = "Ember Media Manager release $tag"
+          releaseNotes = "Ember Media Manager for Jellyfin release $tag"
           publishedAt  = (Get-Date).ToUniversalTime().ToString('o')
           assets       = @(
             [ordered]@{

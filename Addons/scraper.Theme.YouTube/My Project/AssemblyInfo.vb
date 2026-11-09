@@ -9,8 +9,8 @@ Imports System.Runtime.InteropServices
 ' Werte der Assemblyattribute überprüfen
 
 <Assembly: AssemblyTitle("scraper.Theme.YouTube")>
-<Assembly: AssemblyDescription("http://forum.xbmc.org/forumdisplay.php?fid=195")>
-<Assembly: AssemblyCompany("Ember Media Manager")>
+<Assembly: AssemblyDescription("Media manager for the Jellyfin media server - https://jellyfin.org/")>
+<Assembly: AssemblyCompany("Ember Media Manager for Jellyfin")>
 <Assembly: AssemblyProduct("scraper.Theme.YouTube")>
 <Assembly: AssemblyCopyright("Copyright ©  2021")>
 <Assembly: AssemblyTrademark("")>
@@ -31,5 +31,5 @@ Imports System.Runtime.InteropServices
 ' übernehmen, indem Sie "*" eingeben:
 ' <Assembly: AssemblyVersion("1.0.*")>
 
-<Assembly: AssemblyVersion("1.10.0.0")>
-<Assembly: AssemblyFileVersion("1.10.0.0")>
+<Assembly: AssemblyVersion("1.12.0.0")>
+<Assembly: AssemblyFileVersion("1.12.0.0")>

@@ -122,8 +122,10 @@ Public Class frmSettingsHolder
 
             Dim sources As New List(Of AdvancedSettingsComplexSettingsTableItem)
             For Each r As DataGridViewRow In dgvSources.Rows
-                If Not String.IsNullOrEmpty(r.Cells(0).Value.ToString) AndAlso (sources.FindIndex(Function(f) f.Name = r.Cells(0).Value.ToString) = -1) Then
-                    sources.Add(New AdvancedSettingsComplexSettingsTableItem With {.Name = r.Cells(0).Value.ToString, .Value = r.Cells(1).Value.ToString})
+                Dim sSearch As String = If(r.Cells(0).Value Is Nothing, String.Empty, r.Cells(0).Value.ToString).Trim()
+                Dim sSource As String = If(r.Cells(1).Value Is Nothing, String.Empty, r.Cells(1).Value.ToString).Trim()
+                If Not String.IsNullOrEmpty(sSearch) AndAlso (sources.FindIndex(Function(f) f.Name = sSearch) = -1) Then
+                    sources.Add(New AdvancedSettingsComplexSettingsTableItem With {.Name = sSearch, .Value = sSource})
                 End If
             Next
             If sources IsNot Nothing Then
@@ -131,9 +133,13 @@ Public Class frmSettingsHolder
             End If
 
             settings.SetBooleanSetting("VideoSourceByExtension", chkMapByFile.Checked, "*EmberAPP")
+            Dim usedExt As New List(Of String)
             For Each r As DataGridViewRow In dgvByFile.Rows
-                If Not String.IsNullOrEmpty(r.Cells(0).Value.ToString) AndAlso (sources.FindIndex(Function(f) f.Name = r.Cells(0).Value.ToString) = -1) Then
-                    settings.SetSetting(String.Concat("VideoSourceByExtension:", r.Cells(0).Value.ToString), r.Cells(1).Value.ToString, "*EmberAPP")
+                Dim sExt As String = If(r.Cells(0).Value Is Nothing, String.Empty, r.Cells(0).Value.ToString).Trim()
+                Dim sSource As String = If(r.Cells(1).Value Is Nothing, String.Empty, r.Cells(1).Value.ToString).Trim()
+                If Not String.IsNullOrEmpty(sExt) AndAlso (usedExt.FindIndex(Function(f) f = sExt) = -1) Then
+                    usedExt.Add(sExt)
+                    settings.SetSetting(String.Concat("VideoSourceByExtension:", sExt), sSource, "*EmberAPP")
                 End If
             Next
         End Using

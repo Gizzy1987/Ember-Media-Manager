@@ -28,4 +28,4 @@ Movies exist in the library (see [Media Library](../medienbibliothek/ablauf-anwe
 
 ## Result
 
-The set appears in the Movie Sets view with its own artwork; assigned movies show their set membership, which is also written to the NFO files and considered during Kodi export.
+The set appears in the Movie Sets view with its own artwork; assigned movies show their set membership, which is also written to the NFO files.

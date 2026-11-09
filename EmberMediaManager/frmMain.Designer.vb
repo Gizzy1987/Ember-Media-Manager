@@ -9874,7 +9874,7 @@ Partial Class frmMain
         Me.cmnuTray.Items.AddRange(New System.Windows.Forms.ToolStripItem() {Me.cmnuTrayTitle, Me.ToolStripSeparator21, Me.cmnuTrayUpdate, Me.cmnuTrayScrapeMovies, Me.cmnuTrayScrapeMovieSets, Me.cmnuTrayScrapeTVShows, Me.ToolStripSeparator23, Me.cmnuTrayTools, Me.ToolStripSeparator22, Me.cmnuTraySettings, Me.ToolStripSeparator13, Me.cmnuTrayExit})
         Me.cmnuTray.Name = "cmnuTrayIcon"
         Me.cmnuTray.Size = New System.Drawing.Size(195, 204)
-        Me.cmnuTray.Text = "Ember Media Manager"
+        Me.cmnuTray.Text = "Ember Media Manager for Jellyfin"
         '
         'cmnuTrayTitle
         '
@@ -9882,7 +9882,7 @@ Partial Class frmMain
         Me.cmnuTrayTitle.Image = CType(resources.GetObject("cmnuTrayTitle.Image"), System.Drawing.Image)
         Me.cmnuTrayTitle.Name = "cmnuTrayTitle"
         Me.cmnuTrayTitle.Size = New System.Drawing.Size(194, 22)
-        Me.cmnuTrayTitle.Text = "Ember Media Manager"
+        Me.cmnuTrayTitle.Text = "Ember Media Manager for Jellyfin"
         '
         'ToolStripSeparator21
         '
@@ -10131,7 +10131,7 @@ Partial Class frmMain
         Me.MinimumSize = New System.Drawing.Size(800, 700)
         Me.Name = "frmMain"
         Me.Padding = New System.Windows.Forms.Padding(5, 0, 5, 0)
-        Me.Text = "Ember Media Manager"
+        Me.Text = "Ember Media Manager for Jellyfin"
         Me.StatusStrip.ResumeLayout(False)
         Me.StatusStrip.PerformLayout
         Me.mnuMain.ResumeLayout(False)

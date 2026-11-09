@@ -32,10 +32,8 @@ Public Class dlgEdit_Movie
     Private tmpDBElement As Database.DBElement
 
     Private dragBoxFromMouseDown As Rectangle
-    Private fResults As New Containers.ImgResult
     Private iPreviousFrameValue As Integer
     Private lvwActorsSorter As ListViewColumnSorter
-    Private pResults As New Containers.ImgResult
 
     'Extrafanarts/Extrathumbs list settings
     Private iImageList_DistanceLeft As Integer = 1
@@ -97,7 +95,9 @@ Public Class dlgEdit_Movie
 
             Dim iBackground As New Bitmap(pnlTop.Width, pnlTop.Height)
             Using g As Graphics = Graphics.FromImage(iBackground)
-                g.FillRectangle(New Drawing2D.LinearGradientBrush(pnlTop.ClientRectangle, Color.SteelBlue, Color.LightSteelBlue, Drawing2D.LinearGradientMode.Horizontal), pnlTop.ClientRectangle)
+                Using br As New Drawing2D.LinearGradientBrush(pnlTop.ClientRectangle, Color.SteelBlue, Color.LightSteelBlue, Drawing2D.LinearGradientMode.Horizontal)
+                    g.FillRectangle(br, pnlTop.ClientRectangle)
+                End Using
                 pnlTop.BackgroundImage = iBackground
             End Using
 
@@ -898,9 +898,6 @@ Public Class dlgEdit_Movie
             End If
             tmpDBElement.Subtitles.Remove(Subtitle)
         Next
-
-        If Not Master.eSettings.MovieImagesNotSaveURLToNfo AndAlso pResults.Posters.Count > 0 Then tmpDBElement.Movie.Thumb = pResults.Posters
-        If Not Master.eSettings.MovieImagesNotSaveURLToNfo AndAlso fResults.Fanart.Thumb.Count > 0 Then tmpDBElement.Movie.Fanart = pResults.Fanart
     End Sub
 
     Private Sub DataGridView_CellValueChanged(sender As Object, e As DataGridViewCellEventArgs) Handles dgvRatings.CellValueChanged

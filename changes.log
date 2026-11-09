@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-07 — Version 1.12: Ember Media Manager for Jellyfin
+
+- Product renamed to "Ember Media Manager for Jellyfin" (assembly version 1.12.0.0); splash screen and about dialog adapted.
+- The user interface language is now standard German (`de-DE`); the translation file `EmberAPI/Translations/de_DE.xml` is complete.
+- The Kodi interface module `generic.Interface.Kodi` and the C# client library `KodiAPI` (`XBMCRPC`) were removed — individual items are no longer synchronized with a media server.
+- New interface module `generic.Interface.Jellyfin`: management of Jellyfin hosts (name, base URL, API key), connection test via `GET /System/Info`, list of the server libraries via `GET /Library/VirtualFolders`, library refresh via `POST {base-url}/Library/Refresh` (header `X-Emby-Token`). A refresh is triggered automatically after sync/remove events and is debounced (5 s), so a batch import results in a single scan.
+- Menu entries "Jellyfin" in the tools menu and in the tray menu with the items "Update Library" and "Check Connection".
+- The naming presets in the settings were reduced to "Jellyfin" and "Expert"; the Kodi trailer URL format (`plugin://plugin.video.youtube`) was removed — Jellyfin uses normal YouTube URLs.
+- The file and folder layout follows the Jellyfin conventions: movie/show folders `Title (Year)`, season folders `Season 01`, episode files `Series - SxxExx - Title`, images `poster.jpg` / `fanart.jpg` / `banner.jpg` (show and season), episode artwork `<videoname>-thumb.jpg`, NFO files `movie.nfo` / `<videoname>.nfo` / `tvshow.nfo`.
+- Documentation adapted: `docs/help/kodi/` replaced by `docs/help/jellyfin/` (description, technical flow, setup, API), the remaining Kodi references in `docs/help/` rewritten, `README.md` and `docs/RELEASE_NOTES.md` updated.
+
 ## 2026-09-20 — CI/CD workflow set and Git hooks (Issue #7)
 
 - New local Git hooks under `.githooks/` (activated once per clone via `install-hooks.cmd`/`install-hooks.sh`, which set `core.hooksPath`): `pre-commit` validates localization files via `translation-check.py` (with a `python`/`python3`/`py -3` fallback), and `pre-push` mirrors the CI security gate by scanning `nuget restore` output for NU190[1-4] vulnerability warnings, blocking the push on findings. `.gitattributes` pins LF endings for `.githooks/*` so the shell hooks work under `core.autocrlf=true`.

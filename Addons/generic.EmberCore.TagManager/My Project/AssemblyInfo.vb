@@ -7,8 +7,8 @@ Imports System.Runtime.InteropServices
 ' associated with an assembly.
 ' Review the values of the assembly attributes
 <Assembly: AssemblyTitle("generic.EmberCore.TagManager")> 
-<Assembly: AssemblyDescription("http://forum.xbmc.org/forumdisplay.php?fid=195")> 
-<Assembly: AssemblyCompany("Ember Media Manager")> 
+<Assembly: AssemblyDescription("Media manager for the Jellyfin media server - https://jellyfin.org/")> 
+<Assembly: AssemblyCompany("Ember Media Manager for Jellyfin")> 
 <Assembly: AssemblyProduct("generic.EmberCore.TagManager")>
 <Assembly: AssemblyCopyright("Copyright © 2021")>
 <Assembly: AssemblyTrademark("")>
@@ -27,5 +27,5 @@ Imports System.Runtime.InteropServices
 ' You can specify all the values or you can default the Build and Revision Numbers
 ' by using the '*' as shown below:
 ' <Assembly: AssemblyVersion("1.0.*")>
-<Assembly: AssemblyVersion("1.11.0.0")>
-<Assembly: AssemblyFileVersion("1.11.0.0")>
+<Assembly: AssemblyVersion("1.12.0.0")>
+<Assembly: AssemblyFileVersion("1.12.0.0")>

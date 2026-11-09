@@ -29,6 +29,14 @@ At least one movie source is configured and the library has been scanned (see [M
 - *Delete Movie*: remove the entry from the database (optionally the files) — mind the *Delete Confirm* dialog.
 - *Open Containing Folder*: show the file in Explorer.
 
+### 4. Colours in the list
+
+- **Green**: the entry was newly added by a scan or has just been processed by a scraper. It is waiting for your review.
+- **Red**: the entry is marked (*Mark*), e.g. as preparation for a batch action. Marking an entry also clears the green "new" flag.
+- **Black**: the entry has been reviewed and confirmed.
+
+*Unmark* / *Unmark All* removes the mark and also clears the green "new" flag, so the list returns to its normal state.
+
 ## Result
 
-The movie carries complete metadata and artwork in the Kodi-compatible file layout and is ready for media-center export and library views.
+The movie carries complete metadata and artwork in the Jellyfin-compatible file layout and is ready for media-center export and library views.

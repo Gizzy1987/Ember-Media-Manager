@@ -101,7 +101,7 @@ Public Class genericMetadataEditor
     End Sub
 
     Public Function RunGeneric(ByVal mType As Enums.ModuleEventType, ByRef _params As List(Of Object), ByRef _singleobjekt As Object, ByRef _dbelement As Database.DBElement) As Interfaces.ModuleResult Implements Interfaces.GenericModule.RunGeneric
-
+        Return New Interfaces.ModuleResult With {.breakChain = False}
     End Function
 
     Public Sub SaveSetup(ByVal DoDispose As Boolean) Implements Interfaces.GenericModule.SaveSetup

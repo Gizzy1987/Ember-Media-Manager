@@ -93,7 +93,10 @@ Namespace MoviepilotDE
                     '....and use result to get the wanted information
                     If Not String.IsNullOrEmpty(HTML) Then
                         If FilteredOptions.bMainCertifications Then
-                            nMovie.Certifications.Add(GetCertification(HTML))
+                            Dim sCertification As String = GetCertification(HTML)
+                            If Not String.IsNullOrEmpty(sCertification) Then
+                                nMovie.Certifications.Add(sCertification)
+                            End If
                         End If
 
                         If (FilteredOptions.bMainOutline OrElse FilteredOptions.bMainPlot) AndAlso bIsScraperLanguage Then
@@ -229,38 +232,31 @@ Namespace MoviepilotDE
                             Dim resPattern As String = "<div class='trackable' data-target-class='Movie'.*?<\/span>.<a href=""(?<URL>.*?)"".*?>(?<TITLE>.*?)<\/a>.*?(?<YEAR>\d{4}).*?<\/li>"
                             Dim resResult As MatchCollection = Regex.Matches(strSearchResults, resPattern, RegexOptions.Singleline)
 
-
-
                             If resResult.Count = 0 Then
                                 resPattern = "(?<URL>http:\/\/www\.moviepilot\.de\/movies\/.*?)"".*?class=""h3"">(?<TITLE>.*?)<\/a>.*?(?<YEAR>\d{4})"
                                 resResult = Regex.Matches(strSearchResults, resPattern, RegexOptions.Singleline)
-                                If resResult.Count > 0 Then
-                                    strURL = resResult.Item(0).Groups("URL").Value.Trim
-                                End If
                             End If
                             If resResult.Count = 0 Then
                                 resPattern = "class=""h3"" href=""(?<URL>.*?)"".*?>(?<TITLE>.*?)<\/a>.*?<div class='quiet'>.*?(?<YEAR>(?:(?:19|20)\d{2})).*?<\/div>"
                                 resResult = Regex.Matches(strSearchResults, resPattern, RegexOptions.Singleline)
-                                If resResult.Count > 0 Then
-                                    strURL = resResult.Item(0).Groups("URL").Value.Trim
-                                End If
                             End If
 
-                            'Only one search result or no Year to filter
-                            If resResult.Count = 1 OrElse (filterResult.Count > 0 AndAlso String.IsNullOrEmpty(strYear)) Then
-                                If strURL = String.Empty OrElse strURL.Contains("http://www.moviepilot.de") = False Then
-                                    strURL = String.Concat("http://www.moviepilot.de", resResult.Item(0).Groups("URL").Value).Trim
+                            'Only a result whose title and year fit to the media file is used
+                            Dim nBestIndex As Integer = -1
+                            Dim nSourceYear As Integer = StringUtils.GetYearFromString(strYear)
+                            For ctr As Integer = 0 To resResult.Count - 1
+                                Dim strResultTitle As String = HttpUtility.HtmlDecode(resResult.Item(ctr).Groups("TITLE").Value).Trim
+                                Dim nResultYear As Integer = StringUtils.GetYearFromString(resResult.Item(ctr).Groups("YEAR").Value.Trim)
+                                If StringUtils.IsSearchMatch(strTitle, nSourceYear, strResultTitle, String.Empty, nResultYear) Then
+                                    nBestIndex = ctr
+                                    Exit For
                                 End If
+                            Next
+
+                            If nBestIndex >= 0 Then
+                                strURL = String.Concat("http://www.moviepilot.de", resResult.Item(nBestIndex).Groups("URL").Value).Trim
                             ElseIf resResult.Count > 0 Then
-                                ' Try to find a search result with same Year
-                                For ctr As Integer = 0 To resResult.Count - 1
-                                    If resResult.Item(ctr).Groups("YEAR").Value = strYear Then
-                                        strURL = String.Concat("http://www.moviepilot.de", resResult.Item(ctr).Groups("URL").Value.Trim)
-                                        Return strURL
-                                    End If
-                                Next
-                                'no match found -> use first search result
-                                strURL = String.Concat("http://www.moviepilot.de", resResult.Item(0).Groups("URL").Value).Trim
+                                logger.Warn("MOVIEPILOT: No search result for '{0}' fits to the file name - nothing was set", strTitle)
                             End If
                         End If
                     End If

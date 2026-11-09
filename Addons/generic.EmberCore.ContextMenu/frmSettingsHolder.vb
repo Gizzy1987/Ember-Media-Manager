@@ -136,7 +136,7 @@ Public Class frmSettingsHolder
             regKey = Registry.CurrentUser.CreateSubKey("Software\\Classes\\Directory\\shell\\EmberMediaManager")
             regKey.SetValue("ExtendedSubCommandsKey", "Directory\shell\EmberMediaManager\menus")
             regKey.SetValue("Icon", String.Concat(Application.ExecutablePath, ",0").Replace("\", "\\"))
-            regKey.SetValue("MUIVerb", "Ember Media Manager")
+            regKey.SetValue("MUIVerb", "Ember Media Manager for Jellyfin")
             regKey.SetValue("Position", "Bottom")
             regKey.CreateSubKey("menus\\shell")
 

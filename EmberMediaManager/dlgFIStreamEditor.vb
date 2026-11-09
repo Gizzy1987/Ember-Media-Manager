@@ -53,7 +53,7 @@ Public Class dlgFIStreamEditor
                 txtVideoWidth.Text = movie.StreamDetails.Video(idx).Width.ToString
                 txtVideoHeight.Text = movie.StreamDetails.Video(idx).Height.ToString
                 'cocotus, 2013/09 Fix for Progressive setting in metadata - don't use language specific name!!
-                'see thread: http://forum.xbmc.org/showthread.php?tid=172326
+                'see the Jellyfin documentation
                 If movie.StreamDetails.Video(idx).Scantype = "Progressive" OrElse movie.StreamDetails.Video(idx).Scantype = Master.eLang.GetString(616, "Progressive") Then
                     rbVideoProgressive.Checked = True
                 Else
@@ -98,7 +98,7 @@ Public Class dlgFIStreamEditor
                 stream_v.Width = txtVideoWidth.Text
                 stream_v.Height = txtVideoHeight.Text
                 'cocotus, 2013/09 Fix for Progressive setting in metadata - don't use language specific name!!
-                'see thread: http://forum.xbmc.org/showthread.php?tid=172326
+                'see the Jellyfin documentation
                 stream_v.Scantype = If(rbVideoProgressive.Checked, "Progressive", "Interlaced")
                 stream_v.Duration = txtVideoDuration.Text
                 stream_v.Bitrate = txtVideoBitrate.Text

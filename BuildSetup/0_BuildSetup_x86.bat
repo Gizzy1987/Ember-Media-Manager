@@ -1,8 +1,8 @@
 ECHO OFF
 rem build settings for x86
 rem EMM_FILENAME must match the Emm-exe
-SET EMM_FILENAME=Ember Media Manager.exe
-SET EMM_APPNAME=Ember Media Manager
+SET EMM_FILENAME=Ember Media Manager for Jellyfin.exe
+SET EMM_APPNAME=Ember Media Manager for Jellyfin
 SET EMM_ROOT=%CD%\..
 SET EMM_FOLDER=EmberMM - Release - x86
 SET EMM_SYSTEM=x86

@@ -82,15 +82,18 @@ Namespace TeraCopy
                             sw.Close()
                         End Using
 
-                        Dim p As New Process()
-                        Dim Arguments As String = String.Format("{0} *""{1}"" ""{2}""",
-                                                                If(_doMove, "move", "copy"),
-                                                                BatchListPath,
-                                                                _destination)
-                        p.StartInfo = New ProcessStartInfo(_apppath, Arguments)
-                        p.StartInfo.CreateNoWindow = True
-                        p.StartInfo.WindowStyle = ProcessWindowStyle.Normal
-                        p.Start()
+                        Using p As New Process()
+                            Dim Arguments As String = String.Format("{0} *""{1}"" ""{2}""",
+                                                                    If(_doMove, "move", "copy"),
+                                                                    BatchListPath,
+                                                                    _destination)
+                            p.StartInfo = New ProcessStartInfo(_apppath, Arguments)
+                            'TeraCopy is a GUI application, so no console window is created but the TeraCopy window stays visible
+                            p.StartInfo.CreateNoWindow = True
+                            p.Start()
+                            'Wait for the copy/move to be finished before the caller continues (e.g. removes the entries from the database)
+                            p.WaitForExit()
+                        End Using
                     End If
                 End If
             Catch ex As Exception

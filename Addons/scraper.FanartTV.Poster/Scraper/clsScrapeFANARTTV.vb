@@ -23,7 +23,7 @@
 ' # HDClearART -> clearart.png (choose this first)
 ' # cdART -> disc.png
 ' # Movie Backgrounds -> Fanart (this is the only fanart.tv artwork that might overlap with 'typical' artwork scraping from IMDB/TMDB)
-' # Movie Banner -> Banner (not poster - Frodo supports both now, <moviename>-poster.jpg/png and <moviename>-banner.jpg/png or poster.jpg/png and banner.jpg/png)
+' # Movie Banner -> Banner (not poster - Jellyfin supports both now, <moviename>-poster.jpg/png and <moviename>-banner.jpg/png or poster.jpg/png and banner.jpg/png)
 ' # Movie Thumbs -> landscape.png
 ' # Special note - the Logos and ClearArts are language-specific and should be tagged with the appropriate language. Will want to have a setting allowing users to specify a language so as not to get a bunch of foreign-language artwork.
 ' # 1) Logo.png - to be added at a later stage, today is not possible to save

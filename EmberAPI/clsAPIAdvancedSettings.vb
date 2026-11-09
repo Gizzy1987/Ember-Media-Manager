@@ -88,7 +88,7 @@ Public Class AdvancedSettings
             Dim Assembly As String = cAssembly
             If Assembly = String.Empty Then
                 Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-                If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+                If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                     Assembly = "*EmberAPP"
                 End If
             End If
@@ -112,7 +112,7 @@ Public Class AdvancedSettings
         Try
             If Assembly = String.Empty Then
                 Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-                If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+                If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                     Assembly = "*EmberAPP"
                 End If
             End If
@@ -138,7 +138,7 @@ Public Class AdvancedSettings
         Dim Assembly As String = cAssembly
         If Assembly = String.Empty Then
             Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-            If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+            If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                 Assembly = "*EmberAPP"
             End If
         End If
@@ -157,7 +157,7 @@ Public Class AdvancedSettings
             Dim Assembly As String = cAssembly
             If Assembly = String.Empty Then
                 Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-                If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+                If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                     Assembly = "*EmberAPP"
                 End If
             End If
@@ -172,7 +172,7 @@ Public Class AdvancedSettings
             Dim Assembly As String = cAssembly
             If Assembly = String.Empty Then
                 Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-                If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+                If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                     Assembly = "*EmberAPP"
                 End If
             End If
@@ -192,7 +192,7 @@ Public Class AdvancedSettings
             Dim Assembly As String = cAssembly
             If Assembly = String.Empty Then
                 Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-                If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+                If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                     Assembly = "*EmberAPP"
                 End If
             End If
@@ -302,7 +302,7 @@ Public Class AdvancedSettings
             Dim Assembly As String = cAssembly
             If Assembly = String.Empty Then
                 Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-                If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+                If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                     Assembly = "*EmberAPP"
                 End If
             End If
@@ -340,7 +340,7 @@ Public Class AdvancedSettings
             Dim Assembly As String = cAssembly
             If Assembly = String.Empty Then
                 Assembly = Path.GetFileNameWithoutExtension(Reflection.Assembly.GetCallingAssembly().Location)
-                If Assembly = "Ember Media Manager" OrElse Assembly = "EmberAPI" Then
+                If Assembly.StartsWith("Ember Media Manager", StringComparison.OrdinalIgnoreCase) OrElse Assembly = "EmberAPI" Then
                     Assembly = "*EmberAPP"
                 End If
             End If
@@ -370,6 +370,19 @@ Public Class AdvancedSettings
         End Try
         Return True
     End Function
+
+    ''' <summary>
+    ''' Schreibt die AdvancedSettings sofort in die Datei.
+    ''' </summary>
+    ''' <remarks>SetSetting aendert nur den Speicher. Diese Methode sorgt dafuer,
+    ''' dass die Aenderung auch wirklich auf der Platte landet.</remarks>
+    Public Sub SaveSettings()
+        If _disposed Then
+            logger.Fatal(New StackFrame().GetMethod().Name, "AdvancedSettings.SaveSettings on disposed object")
+            Return
+        End If
+        Save()
+    End Sub
 
     Public Sub SetDefaults(ByVal section As String)
         If String.IsNullOrEmpty(section) Then Return

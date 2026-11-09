@@ -242,15 +242,9 @@ Public Class StringUtils
         Return strResult
     End Function
 
-    Public Shared Function ConvertFromKodiTrailerFormatToYouTubeURL(ByVal strURL As String) As String
+    Public Shared Function ConvertFromJellyfinTrailerFormatToYouTubeURL(ByVal strURL As String) As String
         If String.IsNullOrEmpty(strURL) Then Return String.Empty
         Return strURL.Replace("plugin://plugin.video.youtube/?action=play_video&videoid=", "http://www.youtube.com/watch?v=")
-    End Function
-
-    Public Shared Function ConvertFromYouTubeURLToKodiTrailerFormat(ByVal strURL As String) As String
-        Dim strID As String = String.Empty
-        If String.IsNullOrEmpty(strURL) OrElse Not YouTube.UrlUtils.GetVideoIDFromURL(strURL, strID) Then Return String.Empty
-        Return String.Concat("plugin://plugin.video.youtube/?action=play_video&videoid=", strID)
     End Function
     ''' <summary>
     ''' Converts the supplied <c>String</c> to title-case, and converts certain keywords to uppercase
@@ -896,6 +890,23 @@ Public Class StringUtils
         Return String.Concat(nOutline.Substring(0, lastPeriod + 1), "..") 'Note only 2 periods required, since one is already there
     End Function
 
+    ''' <summary>
+    ''' Compiled regex cache for the sort tokens.
+    ''' SortTokens is called for every row of every list fill, so the pattern must not be
+    ''' rebuilt (and re-parsed) per title. The match timeout keeps a pathological,
+    ''' user-configured token from hanging the UI.
+    ''' </summary>
+    Private Shared ReadOnly _sortTokenRegexCache As New System.Collections.Concurrent.ConcurrentDictionary(Of String, Regex)(StringComparer.Ordinal)
+
+    Private Shared Function GetSortTokenRegex(ByVal token As String) As Regex
+        Dim cachedRegex As Regex = Nothing
+        If _sortTokenRegexCache.TryGetValue(token, cachedRegex) Then Return cachedRegex
+
+        Dim newRegex As New Regex(String.Concat("(^", token, ")(.*)"), RegexOptions.IgnoreCase Or RegexOptions.Compiled, TimeSpan.FromSeconds(2))
+        _sortTokenRegexCache.TryAdd(token, newRegex)
+        Return newRegex
+    End Function
+
     Public Shared Function SortTokens(ByVal title As String) As String
         Return SortTokens(title, Master.eSettings.GeneralSortTokens)
     End Function
@@ -903,7 +914,7 @@ Public Class StringUtils
     Private Shared Function SortTokens(ByVal title As String, ByVal tokenList As List(Of String)) As String
         For Each strToken As String In tokenList
             Try
-                Dim mToken As Match = Regex.Match(title, String.Concat("(^", strToken, ")(.*)"), RegexOptions.IgnoreCase)
+                Dim mToken As Match = GetSortTokenRegex(strToken).Match(title)
                 If mToken.Success AndAlso mToken.Groups.Count = 3 Then
                     Return String.Format("{0}, {1}", mToken.Groups(2).Value.Trim, mToken.Groups(1).Value.Trim)
                 End If
@@ -1014,6 +1025,209 @@ Public Class StringUtils
                 Return strCert
         End Select
     End Function
+
+#Region "Scraper match helpers"
+
+    ''' <summary>
+    ''' A candidate of a scraper search result. It is used to find out which result
+    ''' really fits to the title and the year of the media file.
+    ''' </summary>
+    Public Class ScraperSearchCandidate
+
+#Region "Properties"
+
+        ''' <summary>
+        ''' Title of the search result (in the language of the scraper)
+        ''' </summary>
+        Public Property Title() As String = String.Empty
+
+        ''' <summary>
+        ''' Original title of the search result (if the scraper provides one)
+        ''' </summary>
+        Public Property OriginalTitle() As String = String.Empty
+
+        ''' <summary>
+        ''' Year of the search result (0 if unknown)
+        ''' </summary>
+        Public Property Year() As Integer = 0
+
+        ''' <summary>
+        ''' Index of the search result in the original result list
+        ''' </summary>
+        Public Property Index() As Integer = -1
+
+#End Region 'Properties'
+
+    End Class
+
+    ''' <summary>
+    ''' Leading articles that are ignored while two titles are compared.
+    ''' </summary>
+    Private Shared ReadOnly TitleArticles As String() = {"the", "der", "die", "das", "ein", "eine", "a", "an"}
+
+    ''' <summary>
+    ''' Removes a leading article ("The", "Der", ...) from an already normalized title.
+    ''' </summary>
+    Private Shared Function RemoveTitleArticle(ByVal value As String) As String
+        If String.IsNullOrEmpty(value) Then Return String.Empty
+
+        For Each strArticle As String In TitleArticles
+            If value.Length > strArticle.Length AndAlso value.StartsWith(String.Concat(strArticle, " "), StringComparison.Ordinal) Then
+                Return value.Substring(strArticle.Length + 1).Trim
+            End If
+        Next
+
+        Return value
+    End Function
+    ''' <summary>
+    ''' Normalizes a title so that it can be compared with another title.
+    ''' The year is removed, a leading article is removed and all characters that are
+    ''' neither letters nor digits are replaced by spaces.
+    ''' </summary>
+    Public Shared Function NormalizeTitleForMatch(ByVal value As String) As String
+        If String.IsNullOrEmpty(value) Then Return String.Empty
+
+        Dim strFiltered As String = FilterYear(value).ToLowerInvariant
+        Dim sb As New StringBuilder
+        For Each c As Char In strFiltered
+            If Char.IsLetterOrDigit(c) Then
+                sb.Append(c)
+            Else
+                sb.Append(" "c)
+            End If
+        Next
+
+        Return RemoveTitleArticle(Regex.Replace(sb.ToString, "\s+", " ").Trim)
+    End Function
+    ''' <summary>
+    ''' Compares a source title with a candidate title.
+    ''' </summary>
+    Public Shared Function GetTitleMatchLevel(ByVal sourceTitle As String, ByVal candidateTitle As String) As Integer
+        Dim strSource As String = NormalizeTitleForMatch(sourceTitle)
+        Dim strCandidate As String = NormalizeTitleForMatch(candidateTitle)
+
+        If String.IsNullOrEmpty(strSource) OrElse String.IsNullOrEmpty(strCandidate) Then Return -1
+        If strSource = strCandidate Then Return 0
+
+        'one title contains the other one. Very short titles are not used for that,
+        'they would fit to too many different movies
+        Dim strShorter As String = If(strSource.Length <= strCandidate.Length, strSource, strCandidate)
+        Dim strLonger As String = If(strSource.Length <= strCandidate.Length, strCandidate, strSource)
+        If strShorter.Length < 3 Then Return -1
+
+        If strLonger.Contains(strShorter) Then Return 1
+
+        Return -1
+    End Function
+    ''' <summary>
+    ''' Checks if a candidate title fits to the source title.
+    ''' </summary>
+    Public Shared Function IsTitleMatch(ByVal sourceTitle As String, ByVal candidateTitle As String) As Boolean
+        Return GetTitleMatchLevel(sourceTitle, candidateTitle) >= 0
+    End Function
+    ''' <summary>
+    ''' A year is only used if it is a plausible movie year, otherwise it is unknown.
+    ''' </summary>
+    Private Shared Function NormalizeYear(ByVal year As Integer) As Integer
+        If year < 1910 OrElse year > 2100 Then Return 0
+        Return year
+    End Function
+    ''' <summary>
+    ''' Checks if the year of a search result fits to the year of the media file.
+    ''' A tolerance of one year is allowed. If one of both years is unknown, the years
+    ''' are treated as matching.
+    ''' </summary>
+    Public Shared Function IsYearMatch(ByVal sourceYear As Integer, ByVal candidateYear As Integer) As Boolean
+        Dim nSourceYear As Integer = NormalizeYear(sourceYear)
+        Dim nCandidateYear As Integer = NormalizeYear(candidateYear)
+
+        If nSourceYear = 0 OrElse nCandidateYear = 0 Then Return True
+
+        Return Math.Abs(nSourceYear - nCandidateYear) <= 1
+    End Function
+    ''' <summary>
+    ''' Reads the year out of a string like "The Movie (2026)" or "the.movie.2026".
+    ''' </summary>
+    Public Shared Function GetYearFromString(ByVal value As String, Optional ByVal parenthesizedOnly As Boolean = False) As Integer
+        If String.IsNullOrEmpty(value) Then Return 0
+
+        Dim mYear As Match = Regex.Match(value, "\(\s*((19|20)\d{2})\s*\)")
+        If mYear.Success Then Return Convert.ToInt32(mYear.Groups(1).Value)
+
+        If parenthesizedOnly Then Return 0
+
+        mYear = Regex.Match(value, "(?<!\d)((19|20)\d{2})(?!\d)")
+        If mYear.Success Then Return Convert.ToInt32(mYear.Groups(1).Value)
+
+        Return 0
+    End Function
+    ''' <summary>
+    ''' Scores a search result against the title and the year of the media file.
+    ''' A lower score is a better match, -1 means that the result does not fit at all.
+    ''' </summary>
+    Public Shared Function GetSearchMatchScore(ByVal sourceTitle As String,
+                                               ByVal sourceYear As Integer,
+                                               ByVal candidate As ScraperSearchCandidate) As Integer
+        If candidate Is Nothing Then Return -1
+        If Not IsYearMatch(sourceYear, candidate.Year) Then Return -1
+
+        Dim nLevel As Integer = GetTitleMatchLevel(sourceTitle, candidate.Title)
+        If Not String.IsNullOrEmpty(candidate.OriginalTitle) Then
+            Dim nOriginalLevel As Integer = GetTitleMatchLevel(sourceTitle, candidate.OriginalTitle)
+            If nLevel < 0 OrElse nOriginalLevel < nLevel Then nLevel = nOriginalLevel
+        End If
+
+        If nLevel < 0 Then Return -1
+
+        Dim nScore As Integer = nLevel * 100
+        Dim nSourceYear As Integer = NormalizeYear(sourceYear)
+        Dim nCandidateYear As Integer = NormalizeYear(candidate.Year)
+        If nSourceYear > 0 AndAlso nCandidateYear > 0 Then
+            nScore += Math.Min(Math.Abs(nSourceYear - nCandidateYear), 99)
+        End If
+
+        Return nScore
+    End Function
+    ''' <summary>
+    ''' Searches the best matching search result for the given title and year.
+    ''' </summary>
+    Public Shared Function GetBestSearchMatch(ByVal sourceTitle As String,
+                                               ByVal sourceYear As Integer,
+                                               ByVal candidates As IEnumerable(Of ScraperSearchCandidate)) As ScraperSearchCandidate
+        If candidates Is Nothing Then Return Nothing
+
+        Dim nBest As ScraperSearchCandidate = Nothing
+        Dim nBestScore As Integer = Integer.MaxValue
+
+        For Each nCandidate As ScraperSearchCandidate In candidates
+            If nCandidate Is Nothing Then Continue For
+            Dim nScore As Integer = GetSearchMatchScore(sourceTitle, sourceYear, nCandidate)
+            If nScore >= 0 AndAlso nScore < nBestScore Then
+                nBestScore = nScore
+                nBest = nCandidate
+            End If
+        Next
+
+        Return nBest
+    End Function
+    ''' <summary>
+    ''' Checks if a search result fits to the title and the year of the media file.
+    ''' </summary>
+    Public Shared Function IsSearchMatch(ByVal sourceTitle As String,
+                                         ByVal sourceYear As Integer,
+                                         ByVal candidateTitle As String,
+                                         ByVal candidateOriginalTitle As String,
+                                         ByVal candidateYear As Integer) As Boolean
+        Dim nCandidate As New ScraperSearchCandidate With {
+        .Title = If(String.IsNullOrEmpty(candidateTitle), String.Empty, candidateTitle),
+        .OriginalTitle = If(String.IsNullOrEmpty(candidateOriginalTitle), String.Empty, candidateOriginalTitle),
+        .Year = candidateYear
+        }
+
+        Return GetSearchMatchScore(sourceTitle, sourceYear, nCandidate) >= 0
+    End Function
+
+#End Region 'Scraper match helpers'
 
 #End Region 'Methods
 

@@ -4,7 +4,7 @@
 
 ## Purpose
 
-The movie list (*Movies*) shows all scanned movies of the media library. For each movie Ember Media Manager manages — alongside the media files — the complete metadata (title, original title, year, genre, plot, cast, ratings, external IDs), all image types (poster, fanart, banner, ClearArt, ClearLogo, DiscArt, landscape, extrathumbs, extrafanart), trailers, themes and subtitles — compatible with the Kodi file and NFO schema.
+The movie list (*Movies*) shows all scanned movies of the media library. For each movie Ember Media Manager manages — alongside the media files — the complete metadata (title, original title, year, genre, plot, cast, ratings, external IDs), all image types (poster, fanart, banner, ClearArt, ClearLogo, DiscArt, landscape, extrathumbs, extrafanart), trailers, themes and subtitles — compatible with the Jellyfin file and NFO schema.
 
 ## How it works
 

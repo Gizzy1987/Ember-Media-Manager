@@ -141,6 +141,7 @@ Public Class HTTP
         Try
             wrRequest = DirectCast(WebRequest.Create(url), HttpWebRequest)
             wrRequest.Timeout = _defaultRequestTimeout
+            wrRequest.ReadWriteTimeout = _defaultRequestTimeout
             wrRequest.Headers.Add("Accept-Encoding", "gzip,deflate")
             wrRequest.KeepAlive = False
 
@@ -205,6 +206,7 @@ Public Class HTTP
 
             wrRequest = DirectCast(WebRequest.Create(URL), HttpWebRequest)
             wrRequest.Timeout = _defaultRequestTimeout
+            wrRequest.ReadWriteTimeout = _defaultRequestTimeout
 
             'needed for apple trailer website
             If URL.Contains("apple") Then
@@ -241,56 +243,85 @@ Public Class HTTP
 
 
                 If Not String.IsNullOrEmpty(outFile) AndAlso Not wrResponse.ContentLength = 0 Then
+                    'the content length is unknown (-1) if the server uses a chunked transfer encoding
+                    Dim contentLength As Long = wrResponse.ContentLength
+
                     Using Ms As Stream = wrResponse.GetResponseStream
                         If LocalFile.Length > 0 Then
+                            'download into a temporary file first, so the existing file is not lost
+                            'if the download fails or is aborted
+                            Dim tmpFile As String = outFile & ".part"
+                            Dim downloadOK As Boolean = False
 
-                            If File.Exists(outFile) Then File.Delete(outFile)
+                            Try
+                                If File.Exists(tmpFile) Then File.Delete(tmpFile)
 
-                            'save to real file
-                            Using mStream As New FileStream(outFile, FileMode.Create, FileAccess.Write)
-                                'use a larger buffer/blocksize because files are often large, before NET 4.5x : StreamBuffer(4096) = default
-                                Dim StreamBuffer(81920) As Byte
-                                Dim BlockSize As Integer
-                                Dim iProgress As Integer
-                                Dim iCurrent As Integer
-                                Do
-                                    BlockSize = Ms.Read(StreamBuffer, 0, 81920)
-                                    iCurrent += BlockSize
-                                    If BlockSize > 0 Then
-                                        mStream.Write(StreamBuffer, 0, BlockSize)
-                                        If ReportUpdate Then
-                                            iProgress = Convert.ToInt32((iCurrent / wrResponse.ContentLength) * 100)
-                                            RaiseEvent ProgressUpdated(iProgress)
+                                'save to real file
+                                Using mStream As New FileStream(tmpFile, FileMode.Create, FileAccess.Write)
+                                    'use a larger buffer/blocksize because files are often large, before NET 4.5x : StreamBuffer(4096) = default
+                                    Dim StreamBuffer(81920) As Byte
+                                    Dim BlockSize As Integer
+                                    Dim iProgress As Integer
+                                    Dim iCurrent As Long = 0
+                                    Do
+                                        If _cancelRequested Then Exit Do
+                                        BlockSize = Ms.Read(StreamBuffer, 0, 81920)
+                                        If BlockSize > 0 Then
+                                            mStream.Write(StreamBuffer, 0, BlockSize)
+                                            iCurrent += BlockSize
+                                            If ReportUpdate AndAlso contentLength > 0 Then
+                                                iProgress = Convert.ToInt32((CDbl(iCurrent) / contentLength) * 100)
+                                                RaiseEvent ProgressUpdated(iProgress)
+                                            End If
                                         End If
-                                    End If
-                                Loop While BlockSize > 0 AndAlso Not _cancelRequested
-                                'this is not necessary because of using block
-                                'StreamBuffer = Nothing
-                                'mStream.Close()
-                            End Using
+                                    Loop While BlockSize > 0
+                                    downloadOK = (Not _cancelRequested) AndAlso (contentLength <= 0 OrElse iCurrent >= contentLength)
+                                End Using
+
+                                If downloadOK Then
+                                    'only now the old file gets replaced
+                                    If File.Exists(outFile) Then File.Delete(outFile)
+                                    File.Move(tmpFile, outFile)
+                                Else
+                                    logger.Warn(String.Format("[HTTP] [DownloadFile] Download abgebrochen oder unvollstaendig - Zieldatei ""{0}"" wurde nicht ersetzt", outFile))
+                                End If
+                            Finally
+                                'a leftover temporary file is always removed
+                                If File.Exists(tmpFile) Then File.Delete(tmpFile)
+                            End Try
                         Else
                             ' no real file specified, let's work with memory streams
                             outFile = "dummy" & outFile 'used to return the correct extension. localfile is empty so outfile is just .ext
 
-                            Dim count = Convert.ToInt32(wrResponse.ContentLength)
-                            Dim buffer = New Byte(count) {}
-                            Dim bytesRead As Integer
                             Dim iProgress As Integer
-                            Dim iCurrent As Integer
-                            Do
-                                bytesRead += Ms.Read(buffer, bytesRead, count - bytesRead)
-                                iCurrent = bytesRead
-                                If ReportUpdate Then
-                                    iProgress = Convert.ToInt32((iCurrent / wrResponse.ContentLength) * 100)
-                                    RaiseEvent ProgressUpdated(iProgress)
-                                End If
-                            Loop Until bytesRead = count
-                            Ms.Close()
-                            _ms.Close()
-                            _ms = New MemoryStream()
 
-                            _ms.Write(buffer, 0, bytesRead)
-                            _ms.Flush()
+                            If contentLength > 0 Then
+                                Dim count As Integer = If(contentLength > Integer.MaxValue, Integer.MaxValue, CInt(contentLength))
+                                Dim buffer = New Byte(count) {}
+                                Dim bytesRead As Integer = 0
+                                Do
+                                    If _cancelRequested Then Exit Do
+                                    Dim n As Integer = Ms.Read(buffer, bytesRead, count - bytesRead)
+                                    If n <= 0 Then Exit Do
+                                    bytesRead += n
+                                    If ReportUpdate Then
+                                        iProgress = Convert.ToInt32((CDbl(bytesRead) / contentLength) * 100)
+                                        RaiseEvent ProgressUpdated(iProgress)
+                                    End If
+                                Loop While bytesRead < count
+                                Ms.Close()
+                                _ms.Close()
+                                _ms = New MemoryStream()
+
+                                _ms.Write(buffer, 0, bytesRead)
+                                _ms.Flush()
+                            Else
+                                'unknown content length (chunked transfer) -> stream the data directly into the memory stream
+                                _ms.Close()
+                                _ms = New MemoryStream()
+                                Ms.CopyTo(_ms)
+                                _ms.Flush()
+                            End If
 
                         End If
                         Ms.Close()
@@ -316,6 +347,7 @@ Public Class HTTP
             If StringUtils.isValidURL(_URL) Then
                 wrRequest = DirectCast(WebRequest.Create(_URL), HttpWebRequest)
                 wrRequest.Timeout = _defaultRequestTimeout
+                wrRequest.ReadWriteTimeout = _defaultRequestTimeout
 
                 If _cancelRequested Then Return
 

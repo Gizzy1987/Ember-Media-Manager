@@ -34,6 +34,7 @@ Public Class Images
 
     Private _image As Image
     Private _ms As MemoryStream
+    Private _cancelRequested As Boolean
 
 #End Region 'Fields
 
@@ -73,15 +74,18 @@ Public Class Images
         Try
             Dim ICI As ImageCodecInfo = GetEncoderInfo(ImageFormat.Jpeg)
 
-            Dim EncPars As EncoderParameters = New EncoderParameters(2)
-            EncPars.Param(0) = New EncoderParameter(Encoder.RenderMethod, EncoderValue.RenderNonProgressive)
-            EncPars.Param(1) = New EncoderParameter(Encoder.Quality, iQuality)
+            'EncoderParameters (and the EncoderParameter objects it holds) are disposable resources -
+            'without disposing them the GDI+ handles leak on every call.
+            Using EncPars As New EncoderParameters(2)
+                EncPars.Param(0) = New EncoderParameter(Encoder.RenderMethod, EncoderValue.RenderNonProgressive)
+                EncPars.Param(1) = New EncoderParameter(Encoder.Quality, iQuality)
 
-            'Write the supplied image into the MemoryStream
-            If Not _ms Is Nothing Then _ms.Dispose()
-            _ms = New MemoryStream()
-            nImage.Save(_ms, ICI, EncPars)
-            _ms.Flush()
+                'Write the supplied image into the MemoryStream
+                If _ms IsNot Nothing Then _ms.Dispose()
+                _ms = New MemoryStream()
+                nImage.Save(_ms, ICI, EncPars)
+                _ms.Flush()
+            End Using
 
             'Replace the existing image with the new image
             If Not _image Is Nothing Then _image.Dispose()
@@ -96,7 +100,22 @@ Public Class Images
     ''' </summary>
     ''' <remarks></remarks>
     Public Sub Clear()
-        _image = Nothing
+        ResetImage()
+    End Sub
+
+    ''' <summary>
+    ''' Drops the current bitmap and memory stream and starts over with an empty one.
+    ''' Both are unmanaged resources - without an explicit dispose they would only be
+    ''' released by the GC finalizer, which leaks GDI handles on every image load.
+    ''' </summary>
+    Private Sub ResetImage()
+        If _image IsNot Nothing Then
+            _image.Dispose()
+            _image = Nothing
+        End If
+        If _ms IsNot Nothing Then
+            _ms.Dispose()
+        End If
         _ms = New MemoryStream()
     End Sub
     ''' <summary>
@@ -220,7 +239,7 @@ Public Class Images
         If String.IsNullOrEmpty(DBTVSeason.ShowPath) Then Return
 
         Try
-            For Each a In FileUtils.GetFilenameList.TVSeason(DBTVSeason, ImageType)
+            For Each a In FileUtils.GetFilenameList.TVSeason(DBTVSeason, ImageType, True)
                 If File.Exists(a) Then
                     Delete(a)
                 End If
@@ -277,47 +296,92 @@ Public Class Images
 
             If Not fiImage.Exists Then
                 logger.Error(String.Format("[APIImages] [LoadFromFile]: File ""{0}"" not found", strPath))
-                _ms = New MemoryStream
-                _image = Nothing
+                ResetImage()
             ElseIf fiImage.Length > 0 Then
-                _ms = New MemoryStream()
-                _image = Nothing
-                Using fsImage As FileStream = File.OpenRead(strPath)
-                    Dim memStream As New MemoryStream
-                    memStream.SetLength(fsImage.Length)
-                    fsImage.Read(memStream.GetBuffer, 0, CInt(Fix(fsImage.Length)))
-                    _ms.Write(memStream.GetBuffer, 0, CInt(Fix(fsImage.Length)))
+                Try
+                    'dispose the previous bitmap/stream before replacing them
+                    If _image IsNot Nothing Then
+                        _image.Dispose()
+                        _image = Nothing
+                    End If
+                    If _ms IsNot Nothing Then
+                        _ms.Dispose()
+                    End If
+
+                    _ms = New MemoryStream()
+                    Using fsImage As FileStream = File.OpenRead(strPath)
+                        'CopyTo reads the complete stream and handles partial reads correctly -
+                        'a single Read is not guaranteed to return the requested byte count.
+                        'It also avoids the previous double buffer (a second full-size array).
+                        fsImage.CopyTo(_ms)
+                    End Using
                     _ms.Flush()
+
                     If _ms.Length > 0 Then
                         If bLoadBitmap Then
                             _image = New Bitmap(_ms)
                         End If
                     Else
                         logger.Error(String.Format("[APIImages] [LoadFromFile]: File ""{0}"" is empty", strPath))
-                        _ms = New MemoryStream
-                        _image = Nothing
+                        ResetImage()
                     End If
-                End Using
+                Catch ex As Exception
+                    logger.Error(ex, New StackFrame().GetMethod().Name)
+                    ResetImage()
+                End Try
             Else
                 logger.Error(String.Format("[APIImages] [LoadFromFile]: File ""{0}"" is empty", strPath))
-                _ms = New MemoryStream
-                _image = Nothing
+                ResetImage()
             End If
         Else
             logger.Error("[APIImages] [LoadFromFile]: Path is empty")
-            _ms = New MemoryStream
-            _image = Nothing
+            ResetImage()
         End If
     End Sub
 
+    ''' <summary>
+    ''' Creates a bitmap from the contents of the internal MemoryStream.
+    ''' </summary>
+    ''' <returns><c>True</c> if a valid bitmap could be created, <c>False</c> otherwise</returns>
+    ''' <remarks>Empty or invalid image data must not throw here - the callers are not able to
+    ''' handle such an exception. The failure is logged and reported via the return value.</remarks>
     Public Function LoadFromMemoryStream() As Boolean
-        If HasMemoryStream Then
-            _image = New Bitmap(_ms)
+        If _ms Is Nothing OrElse _ms.Length = 0 Then Return False
+
+        Try
+            Using tmpImage As New Bitmap(_ms)
+                'Replace the existing image with the new image
+                If _image IsNot Nothing Then
+                    _image.Dispose()
+                    _image = Nothing
+                End If
+                _image = New Bitmap(tmpImage)
+            End Using
             Return True
-        Else
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+            If _image IsNot Nothing Then
+                _image.Dispose()
+                _image = Nothing
+            End If
             Return False
-        End If
+        End Try
     End Function
+    ''' <summary>
+    ''' Requests the cancellation of a running image download (see <see cref="LoadFromWeb"/>).
+    ''' </summary>
+    ''' <remarks>The flag is checked while the download is running. The pending request is aborted
+    ''' and no image data is applied. The instance stays cancelled until <see cref="ResetCancel"/>
+    ''' is called.</remarks>
+    Public Sub Cancel()
+        _cancelRequested = True
+    End Sub
+    ''' <summary>
+    ''' Clears a previously requested cancellation.
+    ''' </summary>
+    Public Sub ResetCancel()
+        _cancelRequested = False
+    End Sub
     ''' <summary>
     ''' Loads this Image from the supplied URL
     ''' </summary>
@@ -330,9 +394,25 @@ Public Class Images
         Try
             Dim sHTTP As New HTTP
             sHTTP.StartDownloadImage(sURL)
+
+            'Maximum time we wait for the download before we give up
+            Const DOWNLOAD_TIMEOUT As Integer = 300000 '5 minutes
+            Dim iWaited As Integer = 0
+
             While sHTTP.IsDownloading
+                If _cancelRequested Then
+                    logger.Warn(String.Format("[APIImages] [LoadFromWeb]: download cancelled for ""{0}""", sURL))
+                    sHTTP.Cancel()
+                    Return
+                End If
+                If iWaited >= DOWNLOAD_TIMEOUT Then
+                    logger.Warn(String.Format("[APIImages] [LoadFromWeb]: download timeout after {0} seconds for ""{1}""", CInt(iWaited / 1000), sURL))
+                    sHTTP.Cancel()
+                    Return
+                End If
                 Application.DoEvents()
                 Threading.Thread.Sleep(50)
+                iWaited += 50
             End While
 
             If sHTTP.Image IsNot Nothing Then
@@ -348,12 +428,19 @@ Public Class Images
                 'I do not copy from the _ms as it could not be a JPG
                 '_image = New Bitmap(sHTTP.Image)
                 If LoadBitmap Then
+                    'dispose the previous bitmap before it is replaced
+                    If _image IsNot Nothing Then
+                        _image.Dispose()
+                        _image = Nothing
+                    End If
                     _image = New Bitmap(sHTTP.Image) '(Me._ms)
                 End If
 
                 ' if is not a JPG or PNG we have to convert the memory stream to JPG format
                 If Not (sHTTP.isJPG OrElse sHTTP.isPNG) Then
-                    UpdateMSfromImg(New Bitmap(_image))
+                    Using tmpImage As New Bitmap(_ms)
+                        UpdateMSfromImg(tmpImage)
+                    End Using
                 End If
             End If
 
@@ -377,26 +464,109 @@ Public Class Images
     ''' <param name="sPath">Location to store the image</param>
     ''' <remarks></remarks>
     Public Sub SaveToFile(ByVal sPath As String)
-        If _ms.Length > 0 Then
-            Dim retSave() As Byte
-            Try
-                retSave = _ms.ToArray
-
-                'make sure directory exists
-                Directory.CreateDirectory(Directory.GetParent(sPath).FullName)
-                If sPath.Length <= 260 Then
-                    Using fs As New FileStream(sPath, FileMode.Create, FileAccess.Write)
-                        fs.Write(retSave, 0, retSave.Length)
-                        fs.Flush()
-                        fs.Close()
-                    End Using
-                End If
-            Catch ex As Exception
-                logger.Error(ex, New StackFrame().GetMethod().Name)
-            End Try
-        Else
-            Throw New ArgumentOutOfRangeException("Looks like MemoryStream is empty")
+        If _ms Is Nothing OrElse _ms.Length = 0 Then
+            Throw New ArgumentException("Looks like MemoryStream is empty")
         End If
+
+        Try
+            Dim retSave() As Byte = GetBytesForSaving()
+
+            'make sure directory exists
+            Dim oDirectory As DirectoryInfo = Directory.GetParent(sPath)
+            If oDirectory Is Nothing Then
+                logger.Warn(String.Format("[APIImages] [SaveToFile]: no valid directory for ""{0}""", sPath))
+                Return
+            End If
+            Directory.CreateDirectory(oDirectory.FullName)
+
+            If sPath.Length <= 260 Then
+                'write the file in an atomic manner - a cancelled write never leaves a
+                'corrupted (truncated) image file behind
+                WriteFileAtomic(sPath, oDirectory.FullName, retSave)
+            Else
+                logger.Warn(String.Format("[APIImages] [SaveToFile]: path is too long ({0} characters), image was not saved: ""{1}""", sPath.Length, sPath))
+            End If
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+    ''' <summary>
+    ''' Returns the bytes that have to be written to disk.
+    ''' </summary>
+    ''' <returns>The image data in JPEG format</returns>
+    ''' <remarks>The source image is not always a JPEG (PNG, GIF, ...). Writing those original
+    ''' bytes to a "*.jpg" file results in a file which does not match its content, therefore the
+    ''' image is converted to JPEG before it is written.</remarks>
+    Private Function GetBytesForSaving() As Byte()
+        Dim retSave() As Byte = _ms.ToArray
+
+        If IsJPEG(retSave) Then Return retSave
+
+        Try
+            Using msSource As New MemoryStream(retSave)
+            Using imgSource As New Bitmap(msSource)
+                Dim ICI As ImageCodecInfo = GetEncoderInfo(ImageFormat.Jpeg)
+                If ICI Is Nothing Then
+                    logger.Warn("[APIImages] [SaveToFile]: no JPEG encoder available, original data is used")
+                    Return retSave
+                End If
+                Using msJPEG As New MemoryStream()
+                    Using EncPars As New EncoderParameters(1)
+                        EncPars.Param(0) = New EncoderParameter(Encoder.Quality, 100)
+                        imgSource.Save(msJPEG, ICI, EncPars)
+                    End Using
+                    Return msJPEG.ToArray
+                End Using
+            End Using
+            End Using
+        Catch ex As Exception
+            logger.Warn(String.Format("[APIImages] [SaveToFile]: conversion to JPEG failed, original data is used. {0}", ex.Message))
+            Return retSave
+        End Try
+    End Function
+    ''' <summary>
+    ''' Checks if the given data contains a JPEG image.
+    ''' </summary>
+    Private Shared Function IsJPEG(ByVal bData() As Byte) As Boolean
+        Return bData IsNot Nothing AndAlso bData.Length > 2 AndAlso
+               bData(0) = &HFF AndAlso bData(1) = &HD8 AndAlso bData(2) = &HFF
+    End Function
+    ''' <summary>
+    ''' Writes the given data to the given path in an atomic manner.
+    ''' </summary>
+    ''' <remarks>The data is written to a temporary file in the same directory first and is then
+    ''' moved onto the target file. An aborted or cancelled write therefore never leaves a
+    ''' truncated (corrupted) image file behind.</remarks>
+    Private Shared Sub WriteFileAtomic(ByVal sPath As String, ByVal sDirectory As String, ByVal bData() As Byte)
+        Dim sTemp As String = Path.Combine(sDirectory, Path.GetRandomFileName())
+        Try
+            Using fs As New FileStream(sTemp, FileMode.Create, FileAccess.Write)
+                fs.Write(bData, 0, bData.Length)
+                fs.Flush()
+            End Using
+
+            If File.Exists(sPath) Then
+                Try
+                    File.Replace(sTemp, sPath, Nothing)
+                Catch ex As Exception
+                    logger.Warn(String.Format("[APIImages] [WriteFileAtomic]: atomic replace not possible, file is overwritten. {0}", ex.Message))
+                    File.Delete(sPath)
+                    File.Move(sTemp, sPath)
+                End Try
+            Else
+                File.Move(sTemp, sPath)
+            End If
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name & Convert.ToChar(Keys.Tab) & "<" & sPath & ">")
+            'remove the leftover temporary file
+            If File.Exists(sTemp) Then
+                Try
+                    File.Delete(sTemp)
+                Catch ex2 As Exception
+                    logger.Error(ex2, New StackFrame().GetMethod().Name & Convert.ToChar(Keys.Tab) & "<" & sTemp & ">")
+                End Try
+            End If
+        End Try
     End Sub
     ''' <summary>
     ''' Save the image as a Movie image
@@ -449,9 +619,12 @@ Public Class Images
 
         If bResizeEnabled Then
             If _image Is Nothing Then LoadFromMemoryStream()
-            If _image IsNot Nothing Then
-                doResize = _image.Width > intWidth OrElse _image.Height > intHeight
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [Save_Movie]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
             End If
+            doResize = _image.Width > intWidth OrElse _image.Height > intHeight
         End If
 
         Try
@@ -518,9 +691,12 @@ Public Class Images
 
         If bResizeEnabled Then
             If _image Is Nothing Then LoadFromMemoryStream()
-            If _image IsNot Nothing Then
-                doResize = _image.Width > intWidth OrElse _image.Height > intHeight
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [Save_MovieSet]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
             End If
+            doResize = _image.Width > intWidth OrElse _image.Height > intHeight
         End If
 
         Try
@@ -577,9 +753,12 @@ Public Class Images
 
         If bResizeEnabled Then
             If _image Is Nothing Then LoadFromMemoryStream()
-            If _image IsNot Nothing Then
-                doResize = _image.Width > intWidth OrElse _image.Height > intHeight
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [Save_TVAllSeasons]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
             End If
+            doResize = _image.Width > intWidth OrElse _image.Height > intHeight
         End If
 
         Try
@@ -631,9 +810,12 @@ Public Class Images
 
         If bResizeEnabled Then
             If _image Is Nothing Then LoadFromMemoryStream()
-            If _image IsNot Nothing Then
-                doResize = _image.Width > intWidth OrElse _image.Height > intHeight
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [Save_TVEpisode]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
             End If
+            doResize = _image.Width > intWidth OrElse _image.Height > intHeight
         End If
 
         Try
@@ -690,9 +872,12 @@ Public Class Images
 
         If bResizeEnabled Then
             If _image Is Nothing Then LoadFromMemoryStream()
-            If _image IsNot Nothing Then
-                doResize = _image.Width > intWidth OrElse _image.Height > intHeight
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [Save_TVSeason]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
             End If
+            doResize = _image.Width > intWidth OrElse _image.Height > intHeight
         End If
 
         Try
@@ -759,9 +944,12 @@ Public Class Images
 
         If bResizeEnabled Then
             If _image Is Nothing Then LoadFromMemoryStream()
-            If _image IsNot Nothing Then
-                doResize = _image.Width > intWidth OrElse _image.Height > intHeight
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [Save_TVShow]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
             End If
+            doResize = _image.Width > intWidth OrElse _image.Height > intHeight
         End If
 
         Try
@@ -809,10 +997,14 @@ Public Class Images
     Public Function SaveAsMovieActorThumb(ByVal aMovie As Database.DBElement, ByVal actor As MediaContainers.Person) As String
         Dim tPath As String = String.Empty
 
-        For Each a In FileUtils.GetFilenameList.Movie(aMovie, Enums.ModifierType.MainActorThumbs)
-            tPath = a.Replace("<placeholder>", actor.Name.Replace(" ", "_"))
-            SaveToFile(tPath)
-        Next
+        Try
+            For Each a In FileUtils.GetFilenameList.Movie(aMovie, Enums.ModifierType.MainActorThumbs)
+                tPath = a.Replace("<placeholder>", actor.Name.Replace(" ", "_"))
+                SaveToFile(tPath)
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
 
         Clear() 'Dispose to save memory
         Return tPath
@@ -864,6 +1056,11 @@ Public Class Images
         Dim doResize As Boolean = False
         If Master.eSettings.MovieExtrafanartsResize Then
             If _image Is Nothing Then LoadFromMemoryStream()
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [SaveAsMovieExtrafanart]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
+            End If
             doResize = _image.Width > Master.eSettings.MovieExtrafanartsWidth OrElse _image.Height > Master.eSettings.MovieExtrafanartsHeight
         End If
 
@@ -942,6 +1139,11 @@ Public Class Images
         Dim doResize As Boolean = False
         If Master.eSettings.MovieExtrathumbsResize Then
             If _image Is Nothing Then LoadFromMemoryStream()
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [SaveAsMovieExtrathumb]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
+            End If
             doResize = _image.Width > Master.eSettings.MovieExtrathumbsWidth OrElse _image.Height > Master.eSettings.MovieExtrathumbsHeight
         End If
 
@@ -997,10 +1199,14 @@ Public Class Images
     Public Function SaveAsTVEpisodeActorThumb(ByVal mEpisode As Database.DBElement, ByVal actor As MediaContainers.Person) As String
         Dim tPath As String = String.Empty
 
-        For Each a In FileUtils.GetFilenameList.TVEpisode(mEpisode, Enums.ModifierType.EpisodeActorThumbs)
-            tPath = a.Replace("<placeholder>", actor.Name.Replace(" ", "_"))
-            SaveToFile(tPath)
-        Next
+        Try
+            For Each a In FileUtils.GetFilenameList.TVEpisode(mEpisode, Enums.ModifierType.EpisodeActorThumbs)
+                tPath = a.Replace("<placeholder>", actor.Name.Replace(" ", "_"))
+                SaveToFile(tPath)
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
 
         Clear() 'Dispose to save memory
         Return tPath
@@ -1032,10 +1238,14 @@ Public Class Images
     Public Function SaveAsTVShowActorThumb(ByVal mShow As Database.DBElement, ByVal actor As MediaContainers.Person) As String
         Dim tPath As String = String.Empty
 
-        For Each a In FileUtils.GetFilenameList.TVShow(mShow, Enums.ModifierType.MainActorThumbs)
-            tPath = a.Replace("<placeholder>", actor.Name.Replace(" ", "_"))
-            SaveToFile(tPath)
-        Next
+        Try
+            For Each a In FileUtils.GetFilenameList.TVShow(mShow, Enums.ModifierType.MainActorThumbs)
+                tPath = a.Replace("<placeholder>", actor.Name.Replace(" ", "_"))
+                SaveToFile(tPath)
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
 
         Clear() 'Dispose to save memory
         Return tPath
@@ -1084,6 +1294,11 @@ Public Class Images
         Dim doResize As Boolean = False
         If Master.eSettings.TVShowExtrafanartsResize Then
             If _image Is Nothing Then LoadFromMemoryStream()
+            If _image Is Nothing Then
+                logger.Warn("[APIImages] [SaveAsTVShowExtrafanart]: no valid image data available - image cannot be saved")
+                Clear() 'Dispose to save memory
+                Return String.Empty
+            End If
             doResize = _image.Width > Master.eSettings.TVShowExtrafanartsWidth OrElse _image.Height > Master.eSettings.TVShowExtrafanartsHeight
         End If
 

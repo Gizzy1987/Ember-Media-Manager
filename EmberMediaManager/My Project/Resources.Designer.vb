@@ -657,7 +657,7 @@ Namespace My.Resources
         End Property
         
         '''<summary>
-        '''  Sucht eine lokalisierte Zeichenfolge, die http://forum.kodi.tv/forumdisplay.php?fid=195 ähnelt.
+        '''  Sucht eine lokalisierte Zeichenfolge, die https://jellyfin.org/ ähnelt.
         '''</summary>
         Friend ReadOnly Property urlForumEng() As String
             Get
@@ -666,7 +666,7 @@ Namespace My.Resources
         End Property
         
         '''<summary>
-        '''  Sucht eine lokalisierte Zeichenfolge, die http://www.kodinerds.net/index.php/Board/105-Ember-Media-Manager/ ähnelt.
+        '''  Sucht eine lokalisierte Zeichenfolge, die https://github.com/DanCooper/Ember-MM-Newscraper ähnelt.
         '''</summary>
         Friend ReadOnly Property urlForumGer() As String
             Get
@@ -738,11 +738,11 @@ Namespace My.Resources
         End Property
         
         '''<summary>
-        '''  Sucht eine lokalisierte Zeichenfolge, die http://www.xbmc.org/ ähnelt.
+        '''  Sucht eine lokalisierte Zeichenfolge, die https://jellyfin.org/ ähnelt.
         '''</summary>
-        Friend ReadOnly Property urlXBMC() As String
+        Friend ReadOnly Property urlJellyfin() As String
             Get
-                Return ResourceManager.GetString("urlXBMC", resourceCulture)
+                Return ResourceManager.GetString("urlJellyfin", resourceCulture)
             End Get
         End Property
         

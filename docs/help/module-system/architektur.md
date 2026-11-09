@@ -18,7 +18,7 @@
 ## Dependencies
 
 - Modules depend on `EmberAPI` (interfaces, enums, containers, settings) — `EmberAPI.dll` is the contract anchor.
-- Interface modules additionally depend on C# libraries: Kodi → `KodiAPI` (`XBMCRPC`), Trakt → `Trakttv` + TraktApiSharp, TVDB scraper → vendored `TVDB`.
+- Interface modules additionally depend on C# libraries: Trakt → `Trakttv` + TraktApiSharp, TVDB scraper → vendored `TVDB`. The Jellyfin interface talks to the HTTP API of the server directly and needs no client library.
 - Runtime dependency: `Modules` directory next to the exe; `ModulesManager.moduleLocation = Path.Combine(Functions.AppPath, "Modules")`.
 
 ## Data flow
@@ -40,7 +40,7 @@ graph TD
     D --> G[EmberAPI: Interfaces/Enums/DB]
     E --> G
     F --> G
-    F --> H[KodiAPI / Trakttv / TVDB]
+    F --> H[Trakttv / TVDB]
     A --> I[dlgSettings: InjectSetup panels]
     B --> J[RunGeneric/Scraper calls]
     J --> K[GenericEvent/Notifications]

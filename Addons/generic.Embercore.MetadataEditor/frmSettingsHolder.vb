@@ -186,8 +186,10 @@ Public Class frmSettingsHolder
 
             Dim formataudioconversions As New List(Of AdvancedSettingsComplexSettingsTableItem)
             For Each r As DataGridViewRow In dgvAudio.Rows
-                If Not String.IsNullOrEmpty(r.Cells(0).Value.ToString) AndAlso (formataudioconversions.FindIndex(Function(f) f.Name = r.Cells(0).Value.ToString) = -1) Then
-                    formataudioconversions.Add(New AdvancedSettingsComplexSettingsTableItem With {.Name = r.Cells(0).Value.ToString, .Value = r.Cells(1).Value.ToString})
+                Dim sName As String = If(r.Cells(0).Value Is Nothing, String.Empty, r.Cells(0).Value.ToString).Trim()
+                Dim sValue As String = If(r.Cells(1).Value Is Nothing, String.Empty, r.Cells(1).Value.ToString).Trim()
+                If Not String.IsNullOrEmpty(sName) AndAlso (formataudioconversions.FindIndex(Function(f) f.Name = sName) = -1) Then
+                    formataudioconversions.Add(New AdvancedSettingsComplexSettingsTableItem With {.Name = sName, .Value = sValue})
                 End If
             Next
             If formataudioconversions IsNot Nothing Then
@@ -196,8 +198,10 @@ Public Class frmSettingsHolder
 
             Dim formatvideoconversions As New List(Of AdvancedSettingsComplexSettingsTableItem)
             For Each r As DataGridViewRow In dgvVideo.Rows
-                If Not String.IsNullOrEmpty(r.Cells(0).Value.ToString) AndAlso (formatvideoconversions.FindIndex(Function(f) f.Name = r.Cells(0).Value.ToString) = -1) Then
-                    formatvideoconversions.Add(New AdvancedSettingsComplexSettingsTableItem With {.Name = r.Cells(0).Value.ToString, .Value = r.Cells(1).Value.ToString})
+                Dim sName As String = If(r.Cells(0).Value Is Nothing, String.Empty, r.Cells(0).Value.ToString).Trim()
+                Dim sValue As String = If(r.Cells(1).Value Is Nothing, String.Empty, r.Cells(1).Value.ToString).Trim()
+                If Not String.IsNullOrEmpty(sName) AndAlso (formatvideoconversions.FindIndex(Function(f) f.Name = sName) = -1) Then
+                    formatvideoconversions.Add(New AdvancedSettingsComplexSettingsTableItem With {.Name = sName, .Value = sValue})
                 End If
             Next
             If formatvideoconversions IsNot Nothing Then

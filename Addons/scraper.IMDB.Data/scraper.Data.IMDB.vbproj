@@ -136,6 +136,7 @@
     <Reference Include="System.ServiceModel" />
     <Reference Include="System.Transactions" />
     <Reference Include="System.Web" />
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Core">
@@ -164,6 +165,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Scraper\clsScrapeIMDB.vb" />
+    <Compile Include="Scraper\clsScrapeIMDBApi.vb" />
     <Compile Include="Scraper\dlgIMDBSearchResults_TV.Designer.vb">
       <DependentUpon>dlgIMDBSearchResults_TV.vb</DependentUpon>
     </Compile>

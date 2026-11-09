@@ -82,7 +82,7 @@ jobs:
         # packages.config / VB.NET project format.
         uses: ./.github/actions/security-scan
         with:
-          solution-path: Ember Media Manager.sln
+          solution-path: Ember Media Manager for Jellyfin.sln
           artifact-name: vulnerable-packages-pr
           fail-on-vulnerabilities: 'true'
 
@@ -90,7 +90,7 @@ jobs:
         # Gate 3: the solution must compile cleanly. TreatWarningsAsErrors from the
         # reference is intentionally not enabled - the legacy VB.NET codebase carries
         # too many pre-existing warnings for the gate to start green.
-        run: msbuild "Ember Media Manager.sln" -p:Configuration=Debug -p:Platform=x86
+        run: msbuild "Ember Media Manager for Jellyfin.sln" -p:Configuration=Debug -p:Platform=x86
         shell: pwsh
 
   build-and-test:
@@ -107,7 +107,7 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Restore dependencies
-        run: .\.nuget\NuGet.exe restore "Ember Media Manager.sln"
+        run: .\.nuget\NuGet.exe restore "Ember Media Manager for Jellyfin.sln"
         shell: pwsh
 
       - name: Build (Release x64)
@@ -116,7 +116,7 @@ jobs:
         # does not build (missing UnitTests project, MSTest-v1 GAC reference). The
         # Release x64 build covers the shippable configuration instead; the test gates
         # can be re-added once EmberAPI_Test is repaired.
-        run: msbuild "Ember Media Manager.sln" -p:Configuration=Release -p:Platform=x64 -flp:logfile=build.log
+        run: msbuild "Ember Media Manager for Jellyfin.sln" -p:Configuration=Release -p:Platform=x64 -flp:logfile=build.log
         shell: pwsh
 
       - name: Upload build log

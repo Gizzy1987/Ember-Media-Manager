@@ -69,7 +69,7 @@ Public NotInheritable Class dlgAbout
             picDisplay.BackgroundImage = iBackground
         End Using
 
-        Text = "About Ember Media Manager"
+        Text = "About Ember Media Manager for Jellyfin"
 
         ' Optimize Painting.
         SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.DoubleBuffer Or
@@ -77,7 +77,7 @@ Public NotInheritable Class dlgAbout
 
         Dim VersionNumber As String = Master.Version
 
-        CredList.Add(New CredLine With {.Text = String.Concat("Ember Media Manager"), .Font = New Font("Microsoft Sans Serif", 24, FontStyle.Bold)})
+        CredList.Add(New CredLine With {.Text = String.Concat("Ember Media Manager for Jellyfin"), .Font = New Font("Microsoft Sans Serif", 24, FontStyle.Bold)})
         CredList.Add(New CredLine With {.Text = VersionNumber, .Font = New Font("Microsoft Sans Serif", 10, FontStyle.Bold)})
         CredList.Add(New CredLine With {.Text = String.Empty, .Font = New Font("Microsoft Sans Serif", 10, FontStyle.Bold)})
         CredList.Add(New CredLine With {.Text = My.Application.Info.Description, .Font = New Font("Microsoft Sans Serif", 12, FontStyle.Bold)})
@@ -177,8 +177,8 @@ Public NotInheritable Class dlgAbout
     ''' <param name="sender"></param>
     ''' <param name="e"></param>
     ''' <remarks></remarks>
-    Private Sub pbXBMC_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles pbXBMC.Click
-        Functions.Launch(My.Resources.urlXBMC)
+    Private Sub pbJellyfin_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles pbJellyfin.Click
+        Functions.Launch(My.Resources.urlJellyfin)
     End Sub
 
     ''' <summary>

@@ -10,7 +10,7 @@ Via *Edit → Settings...* the entire application is configured: movie and TV sh
 
 - **Settings dialog:** tree view on the left, settings panel on the right; changes are applied with *Apply*.
 - **Sources:** manage movie/TV show sources with *Add Source* (see [Media Library](../medienbibliothek/index.md)).
-- **File naming:** configurable filename schemas per content type (e.g. `<movie>.nfo`, `<movie>-fanart.jpg`, `/extrathumbs/`) — Kodi-compatible defaults are preset.
+- **File naming:** configurable filename schemas per content type (e.g. `<movie>.nfo`, `<movie>-fanart.jpg`, `/extrathumbs/`) — Jellyfin-compatible defaults are preset.
 - **Scrapers:** activation, order and field/image selection per scraper group.
 - **Modules:** activation and module-specific panels; some changes require a restart.
 - **Profiles:** via *Select Profile...* / command-line parameter, separate configurations with their own database are managed — the profile is asked on first start.

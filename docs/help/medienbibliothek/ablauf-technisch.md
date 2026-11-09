@@ -39,7 +39,7 @@ For each discovered item a `Database.DBElement` is populated:
 ### 5. Post-processing and events
 
 - `Database.Clean`/`Delete_Invalid_TVEpisodes`/`Delete_Invalid_TVSeasons`/`Delete_Empty_TVSeasons` remove orphaned entries (on clean jobs)
-- `ModulesManager` dispatches `ModuleEventType.AfterUpdateDB_Movie`/`AfterUpdateDB_TV` to modules (e.g. Kodi sync, Bulk Renamer with "Automatically Rename Files During Multi-Scraper")
+- `ModulesManager` dispatches `ModuleEventType.AfterUpdateDB_Movie`/`AfterUpdateDB_TV` to modules (e.g. Jellyfin library refresh, Bulk Renamer with "Automatically Rename Files During Multi-Scraper")
 
 ## Diagram
 

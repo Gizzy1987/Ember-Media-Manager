@@ -81,7 +81,7 @@ jobs:
 
       - name: Restore solution
         if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
-        run: .\.nuget\NuGet.exe restore "Ember Media Manager.sln"
+        run: .\.nuget\NuGet.exe restore "Ember Media Manager for Jellyfin.sln"
         shell: pwsh
 
       - name: Release gate - build (Debug x86)
@@ -95,7 +95,7 @@ jobs:
         # automatic and manual-tag releases, but not for the asset-repair path, which
         # only needs to rebuild an already-validated release.
         if: steps.version.outputs.released == 'true' && steps.version.outputs.release_action == 'create'
-        run: msbuild "Ember Media Manager.sln" -p:Configuration=Debug -p:Platform=x86 -flp:logfile=build.log
+        run: msbuild "Ember Media Manager for Jellyfin.sln" -p:Configuration=Debug -p:Platform=x86 -flp:logfile=build.log
         shell: pwsh
 
       - name: Upload release-gate build log

@@ -36,6 +36,9 @@ Public Class Scanner
 
     Friend WithEvents bwPrelim As New System.ComponentModel.BackgroundWorker
 
+    'used by Shared methods (e.g. RegexGetTVEpisode) to bail out of long running loops
+    Private Shared _cancelRequested As Boolean = False
+
 #End Region 'Fields
 
 #Region "Events"
@@ -47,10 +50,12 @@ Public Class Scanner
 #Region "Methods"
 
     Public Sub Cancel()
+        _cancelRequested = True
         If bwPrelim.IsBusy Then bwPrelim.CancelAsync()
     End Sub
 
     Public Sub CancelAndWait()
+        _cancelRequested = True
         If bwPrelim.IsBusy Then bwPrelim.CancelAsync()
         While bwPrelim.IsBusy
             Application.DoEvents()
@@ -400,7 +405,7 @@ Public Class Scanner
                 End If
             Next
         Else
-            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonBanner)
+            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonBanner, True)
                 If File.Exists(a) Then
                     tDBElement.ImagesContainer.Banner.LocalFilePath = a
                     Exit For
@@ -418,7 +423,7 @@ Public Class Scanner
                 End If
             Next
         Else
-            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonFanart)
+            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonFanart, True)
                 If File.Exists(a) Then
                     tDBElement.ImagesContainer.Fanart.LocalFilePath = a
                     Exit For
@@ -436,7 +441,7 @@ Public Class Scanner
                 End If
             Next
         Else
-            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonLandscape)
+            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonLandscape, True)
                 If File.Exists(a) Then
                     tDBElement.ImagesContainer.Landscape.LocalFilePath = a
                     Exit For
@@ -454,7 +459,7 @@ Public Class Scanner
                 End If
             Next
         Else
-            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonPoster)
+            For Each a In FileUtils.GetFilenameList.TVSeason(tDBElement, Enums.ModifierType.SeasonPoster, True)
                 If File.Exists(a) Then
                     tDBElement.ImagesContainer.Poster.LocalFilePath = a
                     Exit For
@@ -662,22 +667,6 @@ Public Class Scanner
             'no title so assume it's an invalid nfo, clear nfo path if exists
             DBMovie.NfoPath = String.Empty
             DBMovie.Movie.Title = StringUtils.FilterTitleFromPath_Movie(DBMovie.Filename, DBMovie.IsSingle, DBMovie.Source.UseFolderName)
-        End If
-
-        If Master.eSettings.MovieUseYAMJ AndAlso Master.eSettings.MovieYAMJWatchedFile Then
-            For Each a In FileUtils.GetFilenameList.Movie(DBMovie, Enums.ModifierType.MainWatchedFile)
-                If DBMovie.Movie.PlayCountSpecified Then
-                    If Not File.Exists(a) Then
-                        Dim fs As FileStream = File.Create(a)
-                        fs.Close()
-                    End If
-                Else
-                    If File.Exists(a) Then
-                        DBMovie.Movie.PlayCount = 1
-                        ToNfo = True
-                    End If
-                End If
-            Next
         End If
 
         If DBMovie.Movie.TitleSpecified Then
@@ -1130,6 +1119,54 @@ Public Class Scanner
         Return False
     End Function
 
+    ''' <summary>
+    ''' Sucht den Jellyfin-Teile-Marker am Ende des Textes.
+    ''' </summary>
+    ''' <remarks>Erkannt werden "-part-2", " part 2" und ".part2" sowie die
+    ''' aehnlichen Marker cd, dvd, pt, disc und disk.</remarks>
+    Private Shared Function GetPartNumber(ByVal text As String) As Integer
+        If String.IsNullOrEmpty(text) Then Return -1
+
+        Dim partMatch As Match = Regex.Match(text, "(?:^|[-._ ])(?:part|cd|dvd|pt|disc|disk)[-._ ]*(\d+)(?:\.[^.]*)?$", RegexOptions.IgnoreCase)
+        If partMatch.Success Then
+            Dim partNumber As Integer = 0
+            If Integer.TryParse(partMatch.Groups(1).Value, partNumber) Then Return partNumber
+        End If
+
+        Return -1
+    End Function
+
+    ''' <summary>
+    ''' Ermittelt die Unterepisoden-Nummer aus dem Text hinter der Episodennummer.
+    ''' </summary>
+    ''' <remarks>Erkannt werden der Buchstabe (S01E01A), die Punktform (S01E01.2)
+    ''' und die Jellyfin-Teile-Marker (S01E01-part-2, "S01E01 part 2", "S01E01.part2").</remarks>
+    Private Shared Function GetSubEpisodeNumber(ByVal text As String) As Integer
+        If String.IsNullOrEmpty(text) Then Return -1
+
+        'Jellyfin-Teile
+        Dim partNumber As Integer = GetPartNumber(text)
+        If partNumber > -1 Then Return partNumber
+
+        'Buchstabe als Unterepisoden-Nummer (S01E01A)
+        If text.Length = 1 Then
+            Dim count As Integer = 1
+            For Each c As Char In "abcdefghi".ToCharArray()
+                If c = text.ToLower Then Return count
+                count += 1
+            Next
+        End If
+
+        'Punkt und Zahl (S01E01.2)
+        Dim subMatch As Match = Regex.Match(text, "^\.(\d+)$")
+        If subMatch.Success Then
+            Dim subNumber As Integer = 0
+            If Integer.TryParse(subMatch.Groups(1).Value, subNumber) Then Return subNumber
+        End If
+
+        Return -1
+    End Function
+
     Private Shared Function RegexGetSeasonAndEpisodeNumber(ByVal reg As Match, ByRef eItem As EpisodeItem, ByVal defaultSeason As Integer) As Boolean
         Dim tSeason As String = reg.Groups(1).Value
         Dim tEpisode As String = reg.Groups(2).Value
@@ -1176,18 +1213,12 @@ Public Class Scanner
             eItem.byDate = False
 
             If Not String.IsNullOrEmpty(endPattern) Then
-                If Regex.IsMatch(endPattern.ToLower, "[a-i]", RegexOptions.IgnoreCase) Then
-                    Dim count As Integer = 1
-                    For Each c As Char In "abcdefghi".ToCharArray()
-                        If c = endPattern.ToLower Then
-                            eItem.SubEpisode = count
-                            Exit For
-                        End If
-                        count += 1
-                    Next
-                ElseIf endPattern.StartsWith(".") Then
-                    eItem.SubEpisode = CInt(endPattern.Substring(1))
-                End If
+                eItem.SubEpisode = GetSubEpisodeNumber(endPattern)
+            End If
+
+            'Jellyfin-Teile ("-part-2") stehen im Rest hinter der Episodennummer
+            If eItem.SubEpisode = -1 Then
+                eItem.SubEpisode = GetPartNumber(reg.Groups(3).Value)
             End If
             Return True
         End If
@@ -1232,40 +1263,54 @@ Public Class Scanner
                     ' check the remainder of the string for any further episodes.
                     If Not rShow.byDate Then
                         ' we want "long circuit" OR below so that both offsets are evaluated
+                        Dim maxIter As Integer = 100
+                        Dim iter As Integer = 0
                         While reg2.IsMatch(remainder) OrElse reg.IsMatch(remainder)
+                            iter += 1
+                            'safety net: a broken user regex must never loop endlessly
+                            If iter > maxIter Then
+                                logger.Warn(String.Format("[Scanner] [RegexGetTVEpisode] Too many multipart matches for file {0} [{1}] - aborted", sPath, rShow.Regexp))
+                                Exit While
+                            End If
+                            If _cancelRequested Then Exit While
+                            Dim oldRemainder As String = remainder
                             regexppos = If(reg.IsMatch(remainder), reg.Match(remainder).Index, -1)
                             regexp2pos = If(reg2.IsMatch(remainder), reg2.Match(remainder).Index, -1)
                             If (regexppos <= regexp2pos AndAlso regexppos <> -1) OrElse (regexppos >= 0 AndAlso regexp2pos = -1) Then
                                 eItem = New EpisodeItem
-                                RegexGetSeasonAndEpisodeNumber(reg.Match(remainder), eItem, defaultSeason)
-                                retEpisodeItemsList.Add(eItem)
-                                logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Adding new season {0}, multipart episode {1} [{2}]", eItem.Season, eItem.Episode, rShow.Regexp))
-                                remainder = reg.Match(remainder).Groups(3).Value
+                                If Not RegexGetSeasonAndEpisodeNumber(reg.Match(remainder), eItem, defaultSeason) Then
+                                    logger.Warn(String.Format("[Scanner] [RegexGetTVEpisode] Can't get a proper season and episode number for multipart file {0} [{1}]", sPath, rShow.Regexp))
+                                Else
+                                    retEpisodeItemsList.Add(eItem)
+                                    logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Adding new season {0}, multipart episode {1} [{2}]", eItem.Season, eItem.Episode, rShow.Regexp))
+                                End If
+                                'no progress -> abort instead of looping endlessly
+                                Dim newRemainder As String = reg.Match(remainder).Groups(3).Value
+                                If newRemainder.Length >= remainder.Length Then Exit While
+                                remainder = newRemainder
                             ElseIf (regexp2pos < regexppos AndAlso regexp2pos <> -1) OrElse (regexp2pos >= 0 AndAlso regexppos = -1) Then
                                 Dim endPattern As String = String.Empty
                                 eItem = New EpisodeItem With {.Season = eItem.Season}
                                 Dim Episode As Match = Regex.Match(reg2.Match(remainder).Groups(1).Value, "(\d*)(.*)")
-                                eItem.Episode = CInt(Episode.Groups(1).Value)
+                                Dim iEpisode As Integer = 0
+                                If Not Integer.TryParse(Episode.Groups(1).Value, iEpisode) Then
+                                    logger.Warn(String.Format("[Scanner] [RegexGetTVEpisode] Can't get a proper episode number for multipart file {0} [{1}]", sPath, Master.eSettings.TVMultiPartMatching))
+                                    Exit While
+                                End If
+                                eItem.Episode = iEpisode
                                 If Not String.IsNullOrEmpty(Episode.Groups(2).Value) Then endPattern = Episode.Groups(2).Value
 
                                 If Not String.IsNullOrEmpty(endPattern) Then
-                                    If Regex.IsMatch(endPattern.ToLower, "[a-i]", RegexOptions.IgnoreCase) Then
-                                        Dim count As Integer = 1
-                                        For Each c As Char In "abcdefghi".ToCharArray()
-                                            If c = endPattern.ToLower Then
-                                                eItem.SubEpisode = count
-                                                Exit For
-                                            End If
-                                            count += 1
-                                        Next
-                                    ElseIf endPattern.StartsWith(".") Then
-                                        eItem.SubEpisode = CInt(endPattern.Substring(1))
-                                    End If
+                                    eItem.SubEpisode = GetSubEpisodeNumber(endPattern)
                                 End If
 
                                 retEpisodeItemsList.Add(eItem)
                                 logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Adding multipart episode {0} [{1}]", eItem.Episode, Master.eSettings.TVMultiPartMatching))
                                 remainder = remainder.Substring(reg2.Match(remainder).Length)
+                                If remainder.Length >= oldRemainder.Length Then Exit While
+                            Else
+                                'nothing matched -> no progress possible
+                                Exit While
                             End If
                         End While
                     End If
@@ -1363,8 +1408,17 @@ Public Class Scanner
 
                 Else
                     Dim HasFile As Boolean = False
+                    'the pattern is user configurable -> use a timeout to protect against catastrophic backtracking
+                    Dim rxNotValid As Regex
+                    Try
+                        rxNotValid = New Regex(AdvancedSettings.GetSetting("NotValidFileContains", "[^\w\s]\s?trailer|[^\w\s]\s?sample"), RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2))
+                    Catch ex As Exception
+                        logger.Error(ex, New StackFrame().GetMethod().Name)
+                        rxNotValid = New Regex("[^\w\s]\s?trailer|[^\w\s]\s?sample", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2))
+                    End Try
+
                     Dim tList As IOrderedEnumerable(Of FileInfo) = lFi.Where(Function(f) Master.eSettings.FileSystemValidExts.Contains(f.Extension.ToLower) AndAlso
-                             Not Regex.IsMatch(f.Name, AdvancedSettings.GetSetting("NotValidFileContains", "[^\w\s]\s?trailer|[^\w\s]\s?sample"), RegexOptions.IgnoreCase) AndAlso ((Master.eSettings.MovieSkipStackedSizeCheck AndAlso
+                             Not rxNotValid.IsMatch(f.Name) AndAlso ((Master.eSettings.MovieSkipStackedSizeCheck AndAlso
                             FileUtils.Common.isStacked(f.FullName)) OrElse (Not Convert.ToInt32(Master.eSettings.MovieSkipLessThan) > 0 OrElse f.Length >= Master.eSettings.MovieSkipLessThan * 1048576))).OrderBy(Function(f) f.FullName)
 
                     If tList.Count > 1 AndAlso sSource.IsSingle Then
@@ -1417,14 +1471,33 @@ Public Class Scanner
     ''' <param name="sPath">Path of folder contianing the episodes</param>
     Public Sub ScanForFiles_TV(ByRef tShow As Database.DBElement, ByVal sPath As String)
         Dim di As New DirectoryInfo(sPath)
+        Dim files As FileInfo() = Nothing
 
-        For Each lFile As FileInfo In di.GetFiles.OrderBy(Function(s) s.Name)
+        Try
+            files = di.GetFiles
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name & " (" & sPath & ")")
+            logger.Warn(String.Format("[Scanner] [ScanForFiles_TV] Ordner ""{0}"" konnte nicht gelesen werden", sPath))
+            Return
+        End Try
+
+        'the pattern is user configurable -> use a timeout to protect against catastrophic backtracking
+        Dim rxNotValid As Regex
+        Try
+            rxNotValid = New Regex(AdvancedSettings.GetSetting("NotValidFileContains", "[^\w\s]\s?trailer|[^\w\s]\s?sample"), RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2))
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+            rxNotValid = New Regex("[^\w\s]\s?trailer|[^\w\s]\s?sample", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2))
+        End Try
+
+        For Each lFile As FileInfo In files.OrderBy(Function(s) s.Name)
+            If bwPrelim.CancellationPending Then Return
             Try
                 If Not TVEpisodePaths.Contains(lFile.FullName.ToLower) AndAlso Master.eSettings.FileSystemValidExts.Contains(lFile.Extension.ToLower) AndAlso
-                    Not Regex.IsMatch(lFile.Name, AdvancedSettings.GetSetting("NotValidFileContains", "[^\w\s]\s?trailer|[^\w\s]\s?sample"), RegexOptions.IgnoreCase) AndAlso
+                    Not rxNotValid.IsMatch(lFile.Name) AndAlso
                     (Not Convert.ToInt32(Master.eSettings.TVSkipLessThan) > 0 OrElse lFile.Length >= Master.eSettings.TVSkipLessThan * 1048576) Then
                     tShow.Episodes.Add(New Database.DBElement(Enums.ContentType.TVEpisode) With {.Filename = lFile.FullName, .TVEpisode = New MediaContainers.EpisodeDetails})
-                ElseIf Regex.IsMatch(lFile.Name, AdvancedSettings.GetSetting("NotValidFileContains", "[^\w\s]\s?trailer|[^\w\s]\s?sample"), RegexOptions.IgnoreCase) AndAlso Master.eSettings.FileSystemValidExts.Contains(lFile.Extension.ToLower) Then
+                ElseIf rxNotValid.IsMatch(lFile.Name) AndAlso Master.eSettings.FileSystemValidExts.Contains(lFile.Extension.ToLower) Then
                     logger.Info(String.Format("[Sanner] [ScanForFiles_TV] File ""{0}"" has been ignored (ignore list)", lFile.FullName))
                 End If
             Catch ex As Exception
@@ -1451,7 +1524,7 @@ Public Class Scanner
             Dim strMoviePath As String = String.Empty
 
             Dim dInfo As New DirectoryInfo(strScanPath)
-            Dim dList As IEnumerable(Of DirectoryInfo) = Nothing
+            Dim dList As List(Of DirectoryInfo) = New List(Of DirectoryInfo)
 
             Try
 
@@ -1460,28 +1533,35 @@ Public Class Scanner
 
                 If Master.eSettings.MovieScanOrderModify Then
                     Try
-                        dList = dInfo.GetDirectories.Where(Function(s) (Master.eSettings.MovieGeneralIgnoreLastScan OrElse sSource.Recursive OrElse s.LastWriteTime > SourceLastScan) AndAlso IsValidDir(s, False)).OrderBy(Function(d) d.LastWriteTime)
+                        dList = dInfo.GetDirectories.Where(Function(s) (Master.eSettings.MovieGeneralIgnoreLastScan OrElse sSource.Recursive OrElse s.LastWriteTime > SourceLastScan) AndAlso IsValidDir(s, False)).OrderBy(Function(d) d.LastWriteTime).ToList()
                     Catch ex As Exception
-                        logger.Error(ex, New StackFrame().GetMethod().Name)
+                        logger.Error(ex, New StackFrame().GetMethod().Name & " (" & strScanPath & ")")
+                        logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_Movie] Ordner ""{0}"" konnte nicht gelesen werden - Ebene wird uebersprungen", strScanPath))
                     End Try
                 Else
                     Try
-                        dList = dInfo.GetDirectories.Where(Function(s) (Master.eSettings.MovieGeneralIgnoreLastScan OrElse sSource.Recursive OrElse s.LastWriteTime > SourceLastScan) AndAlso IsValidDir(s, False)).OrderBy(Function(d) d.Name)
+                        dList = dInfo.GetDirectories.Where(Function(s) (Master.eSettings.MovieGeneralIgnoreLastScan OrElse sSource.Recursive OrElse s.LastWriteTime > SourceLastScan) AndAlso IsValidDir(s, False)).OrderBy(Function(d) d.Name).ToList()
                     Catch ex As Exception
-                        logger.Error(ex, New StackFrame().GetMethod().Name)
+                        logger.Error(ex, New StackFrame().GetMethod().Name & " (" & strScanPath & ")")
+                        logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_Movie] Ordner ""{0}"" konnte nicht gelesen werden - Ebene wird uebersprungen", strScanPath))
                     End Try
                 End If
 
-                For Each inDir As DirectoryInfo In dList
-                    If bwPrelim.CancellationPending Then Return
-                    ScanForFiles_Movie(inDir.FullName, sSource)
-                    If sSource.Recursive Then
-                        ScanSourceDirectory_Movie(sSource, False, inDir.FullName)
-                    End If
-                Next
+                If dList Is Nothing Then
+                    logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_Movie] Keine Ordnerliste fuer ""{0}"" - Ebene wird uebersprungen", strScanPath))
+                Else
+                    For Each inDir As DirectoryInfo In dList
+                        If bwPrelim.CancellationPending Then Return
+                        ScanForFiles_Movie(inDir.FullName, sSource)
+                        If sSource.Recursive Then
+                            ScanSourceDirectory_Movie(sSource, False, inDir.FullName)
+                        End If
+                    Next
+                End If
 
             Catch ex As Exception
-                logger.Error(ex, New StackFrame().GetMethod().Name)
+                logger.Error(ex, New StackFrame().GetMethod().Name & " (" & strScanPath & ")")
+                logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_Movie] Ordner ""{0}"" konnte nicht gelesen werden - Ebene wird uebersprungen", strScanPath))
             End Try
         End If
     End Sub
@@ -1491,8 +1571,10 @@ Public Class Scanner
     ''' </summary>
     ''' <param name="sSource"></param>
     ''' <param name="sPath">Specific Path to scan</param>
-    Public Sub ScanSourceDirectory_TV(ByVal sSource As Database.DBSource, Optional ByVal sPath As String = "", Optional forcepathastvshowfolder As Boolean = False)
+    ''' <returns><c>True</c> if the source was scanned, <c>False</c> if the source was not reachable.</returns>
+    Public Function ScanSourceDirectory_TV(ByVal sSource As Database.DBSource, Optional ByVal sPath As String = "", Optional forcepathastvshowfolder As Boolean = False) As Boolean
         Dim ScanPath As String = String.Empty
+        Dim scanned As Boolean = False
 
         If Not String.IsNullOrEmpty(sPath) Then
             ScanPath = sPath
@@ -1501,11 +1583,12 @@ Public Class Scanner
         End If
 
         If Directory.Exists(ScanPath) Then
+            scanned = True
 
             Dim currShowContainer As Database.DBElement
             Dim dInfo As New DirectoryInfo(ScanPath)
             Dim inInfo As DirectoryInfo
-            Dim inList As IEnumerable(Of DirectoryInfo) = Nothing
+            Dim inList As List(Of DirectoryInfo) = New List(Of DirectoryInfo)
 
             'tv show folder as a source
             If sSource.IsSingle OrElse forcepathastvshowfolder Then
@@ -1519,22 +1602,28 @@ Public Class Scanner
 
                 If Master.eSettings.TVScanOrderModify Then
                     Try
-                        inList = dInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.LastWriteTime)
+                        inList = dInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.LastWriteTime).ToList()
                     Catch ex As Exception
-                        logger.Error(ex, New StackFrame().GetMethod().Name)
+                        logger.Error(ex, New StackFrame().GetMethod().Name & " (" & dInfo.FullName & ")")
+                        logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_TV] Ordner ""{0}"" konnte nicht gelesen werden", dInfo.FullName))
                     End Try
                 Else
                     Try
-                        inList = dInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.Name)
+                        inList = dInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.Name).ToList()
                     Catch ex As Exception
-                        logger.Error(ex, New StackFrame().GetMethod().Name)
+                        logger.Error(ex, New StackFrame().GetMethod().Name & " (" & dInfo.FullName & ")")
+                        logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_TV] Ordner ""{0}"" konnte nicht gelesen werden", dInfo.FullName))
                     End Try
                 End If
 
-                For Each sDirs As DirectoryInfo In inList
-                    ScanForFiles_TV(currShowContainer, sDirs.FullName)
-                    ScanSubDirectory_TV(currShowContainer, sDirs.FullName)
-                Next
+                If inList Is Nothing Then
+                    logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_TV] Keine Ordnerliste fuer ""{0}"" - Ebene wird uebersprungen", dInfo.FullName))
+                Else
+                    For Each sDirs As DirectoryInfo In inList
+                        ScanForFiles_TV(currShowContainer, sDirs.FullName)
+                        ScanSubDirectory_TV(currShowContainer, sDirs.FullName)
+                    Next
+                End If
 
                 Dim Result = Load_TVShow(currShowContainer, True, True, True)
                 If Not Result = Enums.ScannerEventType.None Then
@@ -1552,22 +1641,32 @@ Public Class Scanner
 
                     inInfo = New DirectoryInfo(inDir.FullName)
 
+                    inList = New List(Of DirectoryInfo)
+
                     If Master.eSettings.TVScanOrderModify Then
                         Try
-                            inList = inInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.LastWriteTime)
-                        Catch
+                            inList = inInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.LastWriteTime).ToList()
+                        Catch ex As Exception
+                            logger.Error(ex, New StackFrame().GetMethod().Name & " (" & inInfo.FullName & ")")
+                            logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_TV] Ordner ""{0}"" konnte nicht gelesen werden", inInfo.FullName))
                         End Try
                     Else
                         Try
-                            inList = inInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.Name)
-                        Catch
+                            inList = inInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.Name).ToList()
+                        Catch ex As Exception
+                            logger.Error(ex, New StackFrame().GetMethod().Name & " (" & inInfo.FullName & ")")
+                            logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_TV] Ordner ""{0}"" konnte nicht gelesen werden", inInfo.FullName))
                         End Try
                     End If
 
-                    For Each sDirs As DirectoryInfo In inList
-                        ScanForFiles_TV(currShowContainer, sDirs.FullName)
-                        ScanSubDirectory_TV(currShowContainer, sDirs.FullName)
-                    Next
+                    If inList Is Nothing Then
+                        logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_TV] Keine Ordnerliste fuer ""{0}"" - Ebene wird uebersprungen", inInfo.FullName))
+                    Else
+                        For Each sDirs As DirectoryInfo In inList
+                            ScanForFiles_TV(currShowContainer, sDirs.FullName)
+                            ScanSubDirectory_TV(currShowContainer, sDirs.FullName)
+                        Next
+                    End If
 
                     Dim Result = Load_TVShow(currShowContainer, True, True, True)
                     If Not Result = Enums.ScannerEventType.None Then
@@ -1576,8 +1675,12 @@ Public Class Scanner
                 Next
 
             End If
+        Else
+            logger.Warn(String.Format("[Scanner] [ScanSourceDirectory_TV] Quelle nicht erreichbar: {0}", ScanPath))
         End If
-    End Sub
+
+        Return scanned
+    End Function
 
     ''' <summary>
     ''' Check if a path contains movies.
@@ -1599,10 +1702,19 @@ Public Class Scanner
 
     Private Sub ScanSubDirectory_TV(ByRef tShow As Database.DBElement, ByVal strPath As String)
         Dim inInfo As DirectoryInfo
-        Dim inList As IEnumerable(Of DirectoryInfo) = Nothing
+        Dim inList As List(Of DirectoryInfo) = New List(Of DirectoryInfo)
 
         inInfo = New DirectoryInfo(strPath)
-        inList = inInfo.GetDirectories.Where(Function(d) IsValidDir(d, True)).OrderBy(Function(d) d.Name)
+
+        Try
+            inList = inInfo.GetDirectories.Where(Function(d) IsValidDir(d, True)).OrderBy(Function(d) d.Name).ToList()
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name & " (" & strPath & ")")
+            logger.Warn(String.Format("[Scanner] [ScanSubDirectory_TV] Ordner ""{0}"" konnte nicht gelesen werden", strPath))
+            Return
+        End Try
+
+        If inList Is Nothing Then Return
 
         For Each sDirs As DirectoryInfo In inList
             ScanForFiles_TV(tShow, sDirs.FullName)
@@ -1611,6 +1723,7 @@ Public Class Scanner
     End Sub
 
     Public Sub Start(ByVal Scan As Structures.ScanOrClean, ByVal SourceIDs As List(Of Long), ByVal Folder As String)
+        _cancelRequested = False
         bwPrelim = New System.ComponentModel.BackgroundWorker With {
             .WorkerReportsProgress = True,
             .WorkerSupportsCancellation = True
@@ -1689,17 +1802,23 @@ Public Class Scanner
                             Dim currShowContainer As Database.DBElement = Master.DB.Load_TVShow(ShowID, False, False)
 
                             Dim inInfo As DirectoryInfo = New DirectoryInfo(currShowContainer.ShowPath)
-                            Dim inList As IEnumerable(Of DirectoryInfo) = Nothing
+                            Dim inList As List(Of DirectoryInfo) = New List(Of DirectoryInfo)
                             Try
-                                inList = inInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.Name)
-                            Catch
+                                inList = inInfo.GetDirectories.Where(Function(d) (Master.eSettings.TVGeneralIgnoreLastScan OrElse d.LastWriteTime > SourceLastScan) AndAlso IsValidDir(d, True)).OrderBy(Function(d) d.Name).ToList()
+                            Catch ex As Exception
+                                logger.Error(ex, New StackFrame().GetMethod().Name & " (" & inInfo.FullName & ")")
+                                logger.Warn(String.Format("[Scanner] [bwPrelim_DoWork] Ordner ""{0}"" konnte nicht gelesen werden", inInfo.FullName))
                             End Try
 
                             ScanForFiles_TV(currShowContainer, inInfo.FullName)
 
-                            For Each sDirs As DirectoryInfo In inList
-                                ScanForFiles_TV(currShowContainer, sDirs.FullName)
-                            Next
+                            If inList Is Nothing Then
+                                logger.Warn(String.Format("[Scanner] [bwPrelim_DoWork] Keine Ordnerliste fuer ""{0}"" - Ebene wird uebersprungen", inInfo.FullName))
+                            Else
+                                For Each sDirs As DirectoryInfo In inList
+                                    ScanForFiles_TV(currShowContainer, sDirs.FullName)
+                                Next
+                            End If
 
                             Dim Result = Load_TVShow(currShowContainer, True, True, True)
                             If Not Result = Enums.ScannerEventType.None Then
@@ -1746,7 +1865,9 @@ Public Class Scanner
                                 Catch ex As Exception
                                     SourceLastScan = DateTime.Now
                                 End Try
-                                If sSource.Recursive OrElse (Master.eSettings.MovieGeneralIgnoreLastScan OrElse Directory.GetLastWriteTime(sSource.Path) > SourceLastScan) Then
+                                If Not Directory.Exists(sSource.Path) Then
+                                    logger.Warn(String.Format("[Scanner] [bwPrelim_DoWork] Quelle nicht erreichbar: {0}", sSource.Path))
+                                ElseIf sSource.Recursive OrElse (Master.eSettings.MovieGeneralIgnoreLastScan OrElse Directory.GetLastWriteTime(sSource.Path) > SourceLastScan) Then
                                     'save the scan time back to the db
                                     parLastScan.Value = DateTime.Now
                                     parID.Value = sSource.ID
@@ -1798,11 +1919,12 @@ Public Class Scanner
                                 Catch ex As Exception
                                     SourceLastScan = DateTime.Now
                                 End Try
-                                'save the scan time back to the db
-                                parLastScan.Value = DateTime.Now
-                                parID.Value = sSource.ID
-                                SQLUpdatecommand.ExecuteNonQuery()
-                                ScanSourceDirectory_TV(sSource)
+                                If ScanSourceDirectory_TV(sSource) Then
+                                    'save the scan time back to the db - only if the source was actually scanned
+                                    parLastScan.Value = DateTime.Now
+                                    parID.Value = sSource.ID
+                                    SQLUpdatecommand.ExecuteNonQuery()
+                                End If
                                 If bwPrelim.CancellationPending Then
                                     e.Cancel = True
                                     Return

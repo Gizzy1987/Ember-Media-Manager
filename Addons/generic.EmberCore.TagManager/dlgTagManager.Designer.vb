@@ -119,7 +119,7 @@ Partial Class dlgTagManager
         Me.lblTopDetails.Name = "lblTopDetails"
         Me.lblTopDetails.Size = New System.Drawing.Size(111, 13)
         Me.lblTopDetails.TabIndex = 1
-        Me.lblTopDetails.Text = "Manage XBMC Tags"
+        Me.lblTopDetails.Text = "Manage Jellyfin Tags"
         '
         'lblTopTitle
         '

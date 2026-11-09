@@ -30,6 +30,11 @@ Public Class frmMain
 
     Shared logger As Logger = LogManager.GetCurrentClassLogger()
 
+    'shared font for the list views - never disposed, it is referenced by the
+    'DataGridViewCellStyle instances (creating a new Font on every painted cell
+    'leaks GDI handles)
+    Private Shared ReadOnly DefaultListFont As New Font("Segoe UI", 8.25, FontStyle.Regular)
+
     Friend WithEvents bwCheckVersion As New ComponentModel.BackgroundWorker
     Friend WithEvents bwCleanDB As New ComponentModel.BackgroundWorker
     Friend WithEvents bwDownloadPic As New ComponentModel.BackgroundWorker
@@ -115,6 +120,10 @@ Public Class frmMain
     Private prevRow_TVEpisode As Integer = -1
     Private prevRow_TVSeason As Integer = -1
     Private prevRow_TVShow As Integer = -1
+
+    'auto scroll to the media which is currently processed (scraping)
+    Private lastAutoScrollRow As New Dictionary(Of Enums.ContentType, Long)
+    Private AutoScrollHighlightColor As Color = Color.FromArgb(255, 235, 175)
 
     'list movies
     Private currList_Movies As String = "movielist" 'default movie list SQLite view
@@ -404,6 +413,7 @@ Public Class frmMain
         AddHandler fScanner.ProgressUpdate, AddressOf Scanner_ProgressChanged
         AddHandler fTaskManager.ProgressUpdate, AddressOf TaskManager_ProgressChanged
         AddHandler Notifications.ShowNotification, AddressOf ShowNotification
+        AddHandler Notifications.CollectionStatusChanged, AddressOf Notification_CollectionStatusChanged
         AddHandler ModulesManager.Instance.GenericEvent, AddressOf GenericRunCallBack
         AddHandler Master.DB.GenericEvent, AddressOf GenericRunCallBack
 
@@ -826,7 +836,7 @@ Public Class frmMain
         cmnuShowWatched.Text = strMarkAsWatched
 
         'Mark as Unwatched
-        Dim strMarkAsUnwatched As String = Master.eLang.GetString(1073, "Mark as Unatched")
+        Dim strMarkAsUnwatched As String = Master.eLang.GetString(1073, "Mark as Unwatched")
         cmnuMovieUnwatched.Text = strMarkAsUnwatched
         cmnuEpisodeUnwatched.Text = strMarkAsUnwatched
         cmnuSeasonUnwatched.Text = strMarkAsUnwatched
@@ -1340,7 +1350,7 @@ Public Class frmMain
         TT.SetToolTip(btnMarkAll, Master.eLang.GetString(87, "Mark all items in the list"))
         TT.SetToolTip(btnUnmarkAll, Master.eLang.GetString(1100, "Unmark all items in the list"))
         TT.SetToolTip(txtSearchMovies, Master.eLang.GetString(88, "Search the movie titles by entering text here."))
-        TT.SetToolTip(txtSearchMovieSets, Master.eLang.GetString(1267, "Search the movie titles by entering text here."))
+        TT.SetToolTip(txtSearchMovieSets, Master.eLang.GetString(1267, "Search the movieset titles by entering text here."))
         TT.SetToolTip(txtSearchShows, Master.eLang.GetString(1268, "Search the tv show titles by entering text here."))
         TT.SetToolTip(btnFilePlay, Master.eLang.GetString(89, "Play the movie file with the system default media player."))
         TT.SetToolTip(btnMetaDataRefresh, Master.eLang.GetString(90, "Rescan and save the meta data for the selected movie."))
@@ -1558,7 +1568,7 @@ Public Class frmMain
     ''' <remarks></remarks>
     Private Sub btnTrailerPlay_Click(ByVal sender As Object, ByVal e As EventArgs) Handles btnTrailerPlay.Click
         If txtTrailerPath.Text.StartsWith("plugin://plugin.video.youtube") Then
-            Functions.Launch(StringUtils.ConvertFromKodiTrailerFormatToYouTubeURL(txtTrailerPath.Text))
+            Functions.Launch(StringUtils.ConvertFromJellyfinTrailerFormatToYouTubeURL(txtTrailerPath.Text))
         Else
             Functions.Launch(txtTrailerPath.Text, True)
         End If
@@ -2608,7 +2618,7 @@ Public Class frmMain
         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainNFO, True)
         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.withEpisodes, True)
 
-        If ModulesManager.Instance.ScrapeData_TVShow(tmpShow, ScrapeModifiers, Enums.ScrapeType.SingleScrape, Master.DefaultOptions_TV, True) Then
+        If Not ModulesManager.Instance.ScrapeData_TVShow(tmpShow, ScrapeModifiers, Enums.ScrapeType.SingleScrape, Master.DefaultOptions_TV, True) Then
             If tmpShow.Episodes.Count > 0 Then
                 Dim dlgChangeEp As New dlgTVChangeEp(tmpShow)
                 If dlgChangeEp.ShowDialog = DialogResult.OK Then
@@ -4233,7 +4243,7 @@ Public Class frmMain
                 dgvMovies.Columns("premiered").ReadOnly = True
                 dgvMovies.Columns("premiered").SortMode = DataGridViewColumnSortMode.Automatic
                 dgvMovies.Columns("premiered").Visible = Not DataGridView_CheckColumnHide_Movie("premiered")
-                dgvMovies.Columns("premiered").ToolTipText = Master.eLang.GetString(724, "remiered")
+                dgvMovies.Columns("premiered").ToolTipText = Master.eLang.GetString(724, "Premiered")
                 dgvMovies.Columns("Runtime").AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells
                 dgvMovies.Columns("Runtime").MinimumWidth = 45
                 dgvMovies.Columns("Runtime").Resizable = DataGridViewTriState.False
@@ -5013,19 +5023,22 @@ Public Class frmMain
             newRow = newTable.Rows.Item(0)
         End If
 
+        'the row is not always there yet - during a scan the scanner reports the
+        'item before the transaction that writes it has been committed, so the
+        'list view can not return it. Never dereference newRow before the check.
+        If newRow Is Nothing Then Return
+
         Dim dRow = dtMovies.NewRow()
         dRow.ItemArray = newRow.ItemArray
 
-        If newRow IsNot Nothing Then
-            RemoveHandler dgvMovies.CellEnter, AddressOf dgvMovies_CellEnter
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtMovies, dRow})
-            Else
-                dtMovies.Rows.Add(dRow)
-            End If
-            AddHandler dgvMovies.CellEnter, AddressOf dgvMovies_CellEnter
-            currRow_Movie = -1
+        RemoveHandler dgvMovies.CellEnter, AddressOf dgvMovies_CellEnter
+        If InvokeRequired Then
+            Invoke(myDelegate, New Object() {dtMovies, dRow})
+        Else
+            dtMovies.Rows.Add(dRow)
         End If
+        AddHandler dgvMovies.CellEnter, AddressOf dgvMovies_CellEnter
+        currRow_Movie = -1
     End Sub
     ''' <summary>
     ''' Adds a new single Movieset row with informations from DB
@@ -5044,19 +5057,20 @@ Public Class frmMain
             newRow = newTable.Rows.Item(0)
         End If
 
+        'see DataGridView_Row_Add_Movie - the row may not be committed yet
+        If newRow Is Nothing Then Return -1
+
         Dim dRow = dtMovieSets.NewRow()
         dRow.ItemArray = newRow.ItemArray
 
-        If newRow IsNot Nothing Then
-            RemoveHandler dgvMovieSets.CellEnter, AddressOf dgvMovieSets_CellEnter
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtMovieSets, dRow})
-            Else
-                dtMovieSets.Rows.Add(dRow)
-            End If
-            AddHandler dgvMovieSets.CellEnter, AddressOf dgvMovieSets_CellEnter
-            currRow_MovieSet = -1
+        RemoveHandler dgvMovieSets.CellEnter, AddressOf dgvMovieSets_CellEnter
+        If InvokeRequired Then
+            Invoke(myDelegate, New Object() {dtMovieSets, dRow})
+        Else
+            dtMovieSets.Rows.Add(dRow)
         End If
+        AddHandler dgvMovieSets.CellEnter, AddressOf dgvMovieSets_CellEnter
+        currRow_MovieSet = -1
 
         Return bsMovieSets.Find("idSet", id)
     End Function
@@ -5077,19 +5091,20 @@ Public Class frmMain
             newRow = newTable.Rows.Item(0)
         End If
 
+        'see DataGridView_Row_Add_Movie - the row may not be committed yet
+        If newRow Is Nothing Then Return
+
         Dim dRow = dtTVShows.NewRow()
         dRow.ItemArray = newRow.ItemArray
 
-        If newRow IsNot Nothing Then
-            RemoveHandler dgvTVShows.CellEnter, AddressOf dgvTVShows_CellEnter
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtTVShows, dRow})
-            Else
-                dtTVShows.Rows.Add(dRow)
-            End If
-            AddHandler dgvTVShows.CellEnter, AddressOf dgvTVShows_CellEnter
-            currRow_TVShow = -1
+        RemoveHandler dgvTVShows.CellEnter, AddressOf dgvTVShows_CellEnter
+        If InvokeRequired Then
+            Invoke(myDelegate, New Object() {dtTVShows, dRow})
+        Else
+            dtTVShows.Rows.Add(dRow)
         End If
+        AddHandler dgvTVShows.CellEnter, AddressOf dgvTVShows_CellEnter
+        currRow_TVShow = -1
     End Sub
     ''' <summary>
     ''' Removes a single Movie row from list
@@ -5101,11 +5116,14 @@ Public Class frmMain
 
         Dim dRow = From drvRow In dtMovies.Rows Where Convert.ToInt64(DirectCast(drvRow, DataRow).Item("idMovie")) = id Select drvRow
 
-        If dRow(0) IsNot Nothing Then
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtMovies, dRow(0)})
-            Else
-                dtMovies.Rows.Remove(DirectCast(dRow(0), DataRow))
+        'the row is not always in the currently filled list - never index an empty sequence
+        If dRow.Any() Then
+            If dRow(0) IsNot Nothing Then
+                If InvokeRequired Then
+                    Invoke(myDelegate, New Object() {dtMovies, dRow(0)})
+                Else
+                    dtMovies.Rows.Remove(DirectCast(dRow(0), DataRow))
+                End If
             End If
         End If
         currRow_Movie = -1
@@ -5121,11 +5139,14 @@ Public Class frmMain
 
         Dim dRow = From drvRow In dtMovieSets.Rows Where Convert.ToInt64(DirectCast(drvRow, DataRow).Item("idSet")) = id Select drvRow
 
-        If dRow(0) IsNot Nothing Then
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtMovieSets, dRow(0)})
-            Else
-                dtMovieSets.Rows.Remove(DirectCast(dRow(0), DataRow))
+        'the row is not always in the currently filled list - never index an empty sequence
+        If dRow.Any() Then
+            If dRow(0) IsNot Nothing Then
+                If InvokeRequired Then
+                    Invoke(myDelegate, New Object() {dtMovieSets, dRow(0)})
+                Else
+                    dtMovieSets.Rows.Remove(DirectCast(dRow(0), DataRow))
+                End If
             End If
         End If
         currRow_MovieSet = -1
@@ -5141,11 +5162,14 @@ Public Class frmMain
 
         Dim dRow = From drvRow In dtTVEpisodes.Rows Where Convert.ToInt64(DirectCast(drvRow, DataRow).Item("idEpisode")) = id Select drvRow
 
-        If dRow(0) IsNot Nothing Then
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtTVEpisodes, dRow(0)})
-            Else
-                dtTVEpisodes.Rows.Remove(DirectCast(dRow(0), DataRow))
+        'the row is not always in the currently filled list - never index an empty sequence
+        If dRow.Any() Then
+            If dRow(0) IsNot Nothing Then
+                If InvokeRequired Then
+                    Invoke(myDelegate, New Object() {dtTVEpisodes, dRow(0)})
+                Else
+                    dtTVEpisodes.Rows.Remove(DirectCast(dRow(0), DataRow))
+                End If
             End If
         End If
         currRow_TVEpisode = -1
@@ -5161,11 +5185,14 @@ Public Class frmMain
 
         Dim dRow = From drvRow In dtTVSeasons.Rows Where Convert.ToInt64(DirectCast(drvRow, DataRow).Item("idSeason")) = id Select drvRow
 
-        If dRow(0) IsNot Nothing Then
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtTVSeasons, dRow(0)})
-            Else
-                dtTVSeasons.Rows.Remove(DirectCast(dRow(0), DataRow))
+        'the row is not always in the currently filled list - never index an empty sequence
+        If dRow.Any() Then
+            If dRow(0) IsNot Nothing Then
+                If InvokeRequired Then
+                    Invoke(myDelegate, New Object() {dtTVSeasons, dRow(0)})
+                Else
+                    dtTVSeasons.Rows.Remove(DirectCast(dRow(0), DataRow))
+                End If
             End If
         End If
         currRow_TVSeason = -1
@@ -5181,11 +5208,14 @@ Public Class frmMain
 
         Dim dRow = From drvRow In dtTVShows.Rows Where Convert.ToInt64(DirectCast(drvRow, DataRow).Item("idShow")) = id Select drvRow
 
-        If dRow(0) IsNot Nothing Then
-            If InvokeRequired Then
-                Invoke(myDelegate, New Object() {dtTVShows, dRow(0)})
-            Else
-                dtTVShows.Rows.Remove(DirectCast(dRow(0), DataRow))
+        'the row is not always in the currently filled list - never index an empty sequence
+        If dRow.Any() Then
+            If dRow(0) IsNot Nothing Then
+                If InvokeRequired Then
+                    Invoke(myDelegate, New Object() {dtTVShows, dRow(0)})
+                Else
+                    dtTVShows.Rows.Remove(DirectCast(dRow(0), DataRow))
+                End If
             End If
         End If
         currRow_TVShow = -1
@@ -5505,6 +5535,109 @@ Public Class frmMain
         End If
 
         dgvTVShows.Invalidate()
+    End Sub
+
+    ''' <summary>
+    ''' Scrolls the media list to the row of the given media and marks it, so the user can follow the scraping progress.
+    ''' </summary>
+    ''' <param name="tContentType">type of the media (movie, movieset, tvshow, tvseason, tvepisode)</param>
+    ''' <param name="id">id of the media</param>
+    ''' <remarks>
+    ''' The progress events are raised from background threads, so the work is moved to the UI thread.
+    ''' The selection of the user is never touched, the row is only scrolled into view and highlighted.
+    ''' </remarks>
+    Private Sub DataGridView_AutoScroll_ToRow(ByVal tContentType As Enums.ContentType, ByVal id As Long)
+        If InvokeRequired Then
+            Try
+                BeginInvoke(New Action(Sub() DataGridView_AutoScroll_ToRow(tContentType, id)))
+            Catch ex As Exception
+                logger.Error(ex, New StackFrame().GetMethod().Name)
+            End Try
+            Return
+        End If
+
+        Dim dgv As DataGridView = Nothing
+        Dim bs As BindingSource = Nothing
+        Dim sIDColumn As String = String.Empty
+
+        Select Case tContentType
+            Case Enums.ContentType.Movie
+                dgv = dgvMovies
+                bs = bsMovies
+                sIDColumn = "idMovie"
+            Case Enums.ContentType.MovieSet
+                dgv = dgvMovieSets
+                bs = bsMovieSets
+                sIDColumn = "idSet"
+            Case Enums.ContentType.TVShow
+                dgv = dgvTVShows
+                bs = bsTVShows
+                sIDColumn = "idShow"
+            Case Enums.ContentType.TVEpisode
+                dgv = dgvTVEpisodes
+                bs = bsTVEpisodes
+                sIDColumn = "idEpisode"
+            Case Enums.ContentType.TVSeason
+                dgv = dgvTVSeasons
+                bs = bsTVSeasons
+                sIDColumn = "idSeason"
+            Case Else
+                Exit Sub
+        End Select
+
+        If dgv Is Nothing OrElse bs Is Nothing Then Exit Sub
+
+        'don't move the list around, if the user is not looking at it
+        If Not dgv.Visible Then Exit Sub
+        If Not Me.Visible Then Exit Sub
+        If Me.WindowState = FormWindowState.Minimized Then Exit Sub
+        If Not (Me.Focused OrElse Me.ContainsFocus) Then Exit Sub
+
+        'never interfere with a row the user is editing right now
+        If dgv.IsCurrentCellInEditMode Then Exit Sub
+
+        Dim iRowIndex As Integer = -1
+
+        Try
+            iRowIndex = bs.Find(sIDColumn, id)
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+            Exit Sub
+        End Try
+
+        If iRowIndex < 0 OrElse iRowIndex >= dgv.Rows.Count Then Exit Sub
+
+        Try
+            'scroll the row into view, but only if it is not visible already
+            Dim iFirstRow As Integer = dgv.FirstDisplayedScrollingRowIndex
+            Dim iVisibleRows As Integer = 1
+
+            If dgv.RowTemplate.Height > 0 Then
+                iVisibleRows = dgv.DisplayRectangle.Height \ dgv.RowTemplate.Height
+            End If
+
+            If iRowIndex < iFirstRow OrElse iRowIndex > iFirstRow + iVisibleRows Then
+                dgv.FirstDisplayedScrollingRowIndex = iRowIndex
+            End If
+
+            'mark the row, without touching the selection of the user
+            If lastAutoScrollRow.ContainsKey(tContentType) Then
+                Dim lLastID As Long = lastAutoScrollRow(tContentType)
+
+                If lLastID <> id Then
+                    Dim iLastRow As Integer = bs.Find(sIDColumn, lLastID)
+
+                    If iLastRow >= 0 AndAlso iLastRow < dgv.Rows.Count Then
+                        dgv.Rows(iLastRow).DefaultCellStyle.BackColor = Color.Empty
+                    End If
+                End If
+            End If
+
+            dgv.Rows(iRowIndex).DefaultCellStyle.BackColor = AutoScrollHighlightColor
+            lastAutoScrollRow(tContentType) = id
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
     End Sub
 
     Private Sub DataGridView_Sorting_Restore_Movie()
@@ -6117,12 +6250,12 @@ Public Class frmMain
             colName = "VideoSource" OrElse
             colName = "Year"
             ) AndAlso e.RowIndex >= 0 Then
-            If Convert.ToBoolean(dgvMovies.Item("Mark", e.RowIndex).Value) Then
-                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
-            ElseIf Convert.ToBoolean(dgvMovies.Item("New", e.RowIndex).Value) Then
+            If Convert.ToBoolean(dgvMovies.Item("New", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
                 e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+            ElseIf Convert.ToBoolean(dgvMovies.Item("Mark", e.RowIndex).Value) Then
+                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
             ElseIf Convert.ToBoolean(dgvMovies.Item("MarkCustom1", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = Color.FromArgb(Master.eSettings.MovieGeneralCustomMarker1Color)
                 e.CellStyle.SelectionForeColor = Color.FromArgb(Master.eSettings.MovieGeneralCustomMarker1Color)
@@ -6137,7 +6270,7 @@ Public Class frmMain
                 e.CellStyle.SelectionForeColor = Color.FromArgb(Master.eSettings.MovieGeneralCustomMarker4Color)
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
-                e.CellStyle.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
+                e.CellStyle.Font = DefaultListFont
                 e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
             End If
         End If
@@ -6363,7 +6496,7 @@ Public Class frmMain
                         dgvMovies.ClearSelection()
                         dgvMovies.Rows(dgvHTI.RowIndex).Selected = True
                         dgvMovies.CurrentCell = dgvMovies.Item("ListTitle", dgvHTI.RowIndex)
-                        'cmnuMovie.Enabled = True
+                        cmnuMovie.Enabled = True
                     Else
                         cmnuMovie.Enabled = True
                     End If
@@ -6774,15 +6907,15 @@ Public Class frmMain
             colName = "ListTitle" OrElse
             colName = "TMDBColID"
             ) AndAlso e.RowIndex >= 0 Then
-            If Convert.ToBoolean(dgvMovieSets.Item("Mark", e.RowIndex).Value) Then
-                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
-            ElseIf Convert.ToBoolean(dgvMovieSets.Item("New", e.RowIndex).Value) Then
+            If Convert.ToBoolean(dgvMovieSets.Item("New", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
                 e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+            ElseIf Convert.ToBoolean(dgvMovieSets.Item("Mark", e.RowIndex).Value) Then
+                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
-                e.CellStyle.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
+                e.CellStyle.Font = DefaultListFont
                 e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
             End If
         End If
@@ -6844,6 +6977,9 @@ Public Class frmMain
             If fScanner.IsBusy OrElse bwLoadImages_Movieset.IsBusy OrElse
             bwLoadImages_MoviesetMoviePosters.IsBusy OrElse bwMovieSetScraper.IsBusy OrElse bwReload_MovieSets.IsBusy OrElse
             bwCleanDB.IsBusy Then Return
+
+            'the grid can have the focus without any selected row
+            If dgvMovieSets.SelectedRows.Count = 0 Then Return
 
             Dim indX As Integer = dgvMovieSets.SelectedRows(0).Index
             Dim ID As Long = Convert.ToInt64(dgvMovieSets.Item("idSet", indX).Value)
@@ -6963,7 +7099,7 @@ Public Class frmMain
                         dgvMovieSets.ClearSelection()
                         dgvMovieSets.Rows(dgvHTI.RowIndex).Selected = True
                         dgvMovieSets.CurrentCell = dgvMovieSets.Item("ListTitle", dgvHTI.RowIndex)
-                        'cmnuMovieSet.Enabled = True
+                        cmnuMovieSet.Enabled = True
                     Else
                         cmnuMovieSet.Enabled = True
                     End If
@@ -7273,15 +7409,15 @@ Public Class frmMain
             If Convert.ToInt64(dgvTVEpisodes.Item("idFile", e.RowIndex).Value) = -1 Then
                 e.CellStyle.ForeColor = MediaListColors.Missing.ForeColor
                 e.CellStyle.SelectionForeColor = MediaListColors.Missing.SelectionForeColor
-            ElseIf Convert.ToBoolean(dgvTVEpisodes.Item("Mark", e.RowIndex).Value) Then
-                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
             ElseIf Convert.ToBoolean(dgvTVEpisodes.Item("New", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
                 e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+            ElseIf Convert.ToBoolean(dgvTVEpisodes.Item("Mark", e.RowIndex).Value) Then
+                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
-                e.CellStyle.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
+                e.CellStyle.Font = DefaultListFont
                 e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
             End If
         End If
@@ -7359,6 +7495,9 @@ Public Class frmMain
             Next
         ElseIf e.KeyChar = Convert.ToChar(Keys.Enter) Then
             If fScanner.IsBusy OrElse bwLoadImages_TVShow.IsBusy OrElse bwLoadImages_TVEpisode.IsBusy OrElse bwReload_Movies.IsBusy OrElse bwMovieScraper.IsBusy OrElse bwCleanDB.IsBusy Then Return
+
+            'the grid can have the focus without any selected row
+            If dgvTVEpisodes.SelectedRows.Count = 0 Then Return
 
             Dim indX As Integer = dgvTVEpisodes.SelectedRows(0).Index
             Dim ID As Long = Convert.ToInt64(dgvTVEpisodes.Item("idEpisode", indX).Value)
@@ -7460,6 +7599,7 @@ Public Class frmMain
                         dgvTVEpisodes.ClearSelection()
                         dgvTVEpisodes.Rows(dgvHTI.RowIndex).Selected = True
                         dgvTVEpisodes.CurrentCell = dgvTVEpisodes.Item("Title", dgvHTI.RowIndex)
+                        cmnuEpisode.Enabled = True
                     Else
                         cmnuEpisode.Enabled = True
                     End If
@@ -7760,16 +7900,16 @@ Public Class frmMain
             If Convert.ToBoolean(dgvTVSeasons.Item("Missing", e.RowIndex).Value) AndAlso Not CInt(dgvTVSeasons.Item("Season", e.RowIndex).Value) = -1 Then
                 e.CellStyle.ForeColor = MediaListColors.Missing.ForeColor
                 e.CellStyle.SelectionForeColor = MediaListColors.Missing.SelectionForeColor
-            ElseIf Convert.ToBoolean(dgvTVSeasons.Item("Mark", e.RowIndex).Value) Then
-                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
             ElseIf Convert.ToBoolean(dgvTVSeasons.Item("New", e.RowIndex).Value) OrElse
                 Not String.IsNullOrEmpty(dgvTVSeasons.Item("NewEpisodes", e.RowIndex).Value.ToString) AndAlso CInt(dgvTVSeasons.Item("NewEpisodes", e.RowIndex).Value) > 0 Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
                 e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+            ElseIf Convert.ToBoolean(dgvTVSeasons.Item("Mark", e.RowIndex).Value) Then
+                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
-                e.CellStyle.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
+                e.CellStyle.Font = DefaultListFont
                 e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
             End If
         End If
@@ -7843,6 +7983,9 @@ Public Class frmMain
             Next
         ElseIf e.KeyChar = Convert.ToChar(Keys.Enter) Then
             If fScanner.IsBusy OrElse bwLoadImages_TVShow.IsBusy OrElse bwLoadImages_TVSeason.IsBusy OrElse bwLoadImages_TVEpisode.IsBusy OrElse bwReload_Movies.IsBusy OrElse bwMovieScraper.IsBusy OrElse bwCleanDB.IsBusy Then Return
+
+            'the grid can have the focus without any selected row
+            If dgvTVSeasons.SelectedRows.Count = 0 Then Return
 
             Dim indX As Integer = dgvTVSeasons.SelectedRows(0).Index
             Dim ID As Long = Convert.ToInt64(dgvTVSeasons.Item("idSeason", indX).Value)
@@ -7931,6 +8074,7 @@ Public Class frmMain
                         dgvTVSeasons.ClearSelection()
                         dgvTVSeasons.Rows(dgvHTI.RowIndex).Selected = True
                         dgvTVSeasons.CurrentCell = dgvTVSeasons.Item("Title", dgvHTI.RowIndex)
+                        cmnuSeason.Enabled = True
                     Else
                         cmnuSeason.Enabled = True
                     End If
@@ -8302,16 +8446,16 @@ Public Class frmMain
             colName = "TVDB" OrElse
             colName = "iUserRating"
             ) AndAlso e.RowIndex >= 0 Then
-            If Convert.ToBoolean(dgvTVShows.Item("Mark", e.RowIndex).Value) Then
-                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
-            ElseIf Convert.ToBoolean(dgvTVShows.Item("New", e.RowIndex).Value) OrElse
+            If Convert.ToBoolean(dgvTVShows.Item("New", e.RowIndex).Value) OrElse
                 Not String.IsNullOrEmpty(dgvTVShows.Item("NewEpisodes", e.RowIndex).Value.ToString) AndAlso CInt(dgvTVShows.Item("NewEpisodes", e.RowIndex).Value) > 0 Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
                 e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+            ElseIf Convert.ToBoolean(dgvTVShows.Item("Mark", e.RowIndex).Value) Then
+                e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
-                e.CellStyle.Font = New Font("Segoe UI", 8.25, FontStyle.Regular)
+                e.CellStyle.Font = DefaultListFont
                 e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
             End If
         End If
@@ -8386,6 +8530,9 @@ Public Class frmMain
             Next
         ElseIf e.KeyChar = Convert.ToChar(Keys.Enter) Then
             If fScanner.IsBusy OrElse bwLoadImages_TVShow.IsBusy OrElse bwLoadImages_TVSeason.IsBusy OrElse bwLoadImages_TVEpisode.IsBusy OrElse bwReload_Movies.IsBusy OrElse bwMovieScraper.IsBusy OrElse bwCleanDB.IsBusy Then Return
+
+            'the grid can have the focus without any selected row
+            If dgvTVShows.SelectedRows.Count = 0 Then Return
 
             Dim indX As Integer = dgvTVShows.SelectedRows(0).Index
             Dim ID As Long = Convert.ToInt64(dgvTVShows.Item("idShow", indX).Value)
@@ -8502,7 +8649,7 @@ Public Class frmMain
                         dgvTVShows.ClearSelection()
                         dgvTVShows.Rows(dgvHTI.RowIndex).Selected = True
                         dgvTVShows.CurrentCell = dgvTVShows.Item("ListTitle", dgvHTI.RowIndex)
-                        'cmnuShow.Enabled = True
+                        cmnuShow.Enabled = True
                     Else
                         cmnuShow.Enabled = True
                     End If
@@ -10657,7 +10804,8 @@ Public Class frmMain
         If lstActors.Items.Count > 0 AndAlso lstActors.SelectedItems.Count > 0 AndAlso alActors.Item(lstActors.SelectedIndex) IsNot Nothing AndAlso Not alActors.Item(lstActors.SelectedIndex).ToString = "none" Then
 
             If pbActors.Image IsNot Nothing Then
-                pbActors.Image.Dispose()
+                'never dispose the shared resource image - it is cached by the ResourceManager
+                If pbActors.Image IsNot My.Resources.actor_silhouette Then pbActors.Image.Dispose()
                 pbActors.Image = Nothing
             End If
 
@@ -10888,7 +11036,8 @@ Public Class frmMain
             alActors = Nothing
         End If
         If pbActors.Image IsNot Nothing Then
-            pbActors.Image.Dispose()
+            'never dispose the shared resource image - it is cached by the ResourceManager
+            If pbActors.Image IsNot My.Resources.actor_silhouette Then pbActors.Image.Dispose()
             pbActors.Image = Nothing
         End If
         MainActors.Clear()
@@ -10899,7 +11048,8 @@ Public Class frmMain
             alGuestStars = Nothing
         End If
         If pbGuestStars.Image IsNot Nothing Then
-            pbGuestStars.Image.Dispose()
+            'never dispose the shared resource image - it is cached by the ResourceManager
+            If pbGuestStars.Image IsNot My.Resources.actor_silhouette Then pbGuestStars.Image.Dispose()
             pbGuestStars.Image = Nothing
         End If
         MainGuestStars.Clear()
@@ -11515,7 +11665,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainBanner, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainBanners.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11540,7 +11690,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainBanner, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainBanners.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11567,7 +11717,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainBanner, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.MainBanners.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11598,7 +11748,7 @@ Public Class frmMain
                             Else
                                 Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.SeasonBanner, True)
                             End If
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.SeasonBanners.Count > 0 OrElse (tmpDBElement.TVSeason.IsAllSeasons AndAlso aContainer.MainBanners.Count > 0) Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11653,7 +11803,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainCharacterArt, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.MainCharacterArts.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11706,7 +11856,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainClearArt, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainClearArts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11731,7 +11881,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainClearArt, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainClearArts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11811,7 +11961,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainClearLogo, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainClearLogos.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11836,7 +11986,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainClearLogo, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainClearLogos.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11863,7 +12013,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainClearLogo, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.MainClearLogos.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11916,7 +12066,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainDiscArt, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainDiscArts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -11941,7 +12091,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainDiscArt, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainDiscArts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12007,7 +12157,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainFanart, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainFanarts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12032,7 +12182,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainFanart, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainFanarts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12059,7 +12209,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainFanart, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.MainFanarts.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12090,7 +12240,7 @@ Public Class frmMain
                             Else
                                 Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.SeasonFanart, True)
                             End If
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.SeasonFanarts.Count > 0 OrElse aContainer.MainFanarts.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12117,7 +12267,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.EpisodeFanart, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.EpisodeFanarts.Count > 0 OrElse aContainer.MainFanarts.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12162,7 +12312,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainKeyart, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainKeyarts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12187,7 +12337,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainKeyart, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainKeyarts.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12214,7 +12364,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainKeyart, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.MainKeyarts.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12267,7 +12417,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainLandscape, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainLandscapes.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12292,7 +12442,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainLandscape, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainLandscapes.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12319,7 +12469,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainLandscape, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.MainLandscapes.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12350,7 +12500,7 @@ Public Class frmMain
                             Else
                                 Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.SeasonLandscape, True)
                             End If
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.SeasonLandscapes.Count > 0 OrElse (tmpDBElement.TVSeason.IsAllSeasons AndAlso aContainer.MainLandscapes.Count > 0) Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12399,7 +12549,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainPoster, True)
-                        If ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movie(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                             If aContainer.MainPosters.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12424,7 +12574,7 @@ Public Class frmMain
                         Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                         Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainPoster, True)
-                        If ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
+                        If Not ModulesManager.Instance.ScrapeImage_Movieset(tmpDBElement, aContainer, ScrapeModifiers) Then
                             If aContainer.MainPosters.Count > 0 Then
                                 Dim dlgImgS As New dlgImgSelect()
                                 If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12451,7 +12601,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.MainPoster, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.MainPosters.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12482,7 +12632,7 @@ Public Class frmMain
                             Else
                                 Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.SeasonPoster, True)
                             End If
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.SeasonPosters.Count > 0 OrElse (tmpDBElement.TVSeason.IsAllSeasons AndAlso aContainer.MainPosters.Count > 0) Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -12509,7 +12659,7 @@ Public Class frmMain
                             Dim ScrapeModifiers As New Structures.ScrapeModifiers
 
                             Functions.SetScrapeModifiers(ScrapeModifiers, Enums.ModifierType.EpisodePoster, True)
-                            If ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
+                            If Not ModulesManager.Instance.ScrapeImage_TV(tmpDBElement, aContainer, ScrapeModifiers, True) Then
                                 If aContainer.EpisodePosters.Count > 0 Then
                                     Dim dlgImgS As New dlgImgSelect()
                                     If dlgImgS.ShowDialog(tmpDBElement, aContainer, ScrapeModifiers) = DialogResult.OK Then
@@ -14382,6 +14532,9 @@ Public Class frmMain
             Case Enums.ScannerEventType.Refresh_TVShow
                 DataGridView_Row_Update_TVShow(eProgressValue.ID, True)
             Case Enums.ScannerEventType.ScannerEnded
+                'show the collected notifications right away instead of waiting for the quiet period
+                Notifications.FlushNotifications()
+
                 If Not Master.isCL Then
                     SetStatus(String.Empty)
                     DataGridView_FillList_Main(False, True, False)
@@ -14398,6 +14551,20 @@ Public Class frmMain
     Private Sub Scraper_CreateList_Movie(ByVal sType As Enums.ScrapeType, ByVal ScrapeOptions As Structures.ScrapeOptions, ByVal ScrapeModifiers As Structures.ScrapeModifiers)
         Dim DataRowList As New List(Of DataRow)
         Dim ScrapeList As New List(Of ScrapeItem)
+
+        'ask if the existing data should be overwritten by the scraped data
+        Select Case sType
+            Case Enums.ScrapeType.MissingAuto, Enums.ScrapeType.MissingAsk, Enums.ScrapeType.MissingSkip
+                'only missing information is wanted -> keep the existing data
+                ScrapeOptions.bKeepExisting = True
+            Case Enums.ScrapeType.NewAuto, Enums.ScrapeType.NewAsk, Enums.ScrapeType.NewSkip
+                'new movies -> there is no existing data
+            Case Else
+                If MessageBox.Show(Me, Master.eLang.GetString(1714, "Overwrite existing data?"), "Ember Media Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) = DialogResult.No Then
+                    'keep the existing data and only fill empty fields
+                    ScrapeOptions.bKeepExisting = True
+                End If
+        End Select
 
         Select Case sType
             Case Enums.ScrapeType.SelectedAsk, Enums.ScrapeType.SelectedAuto, Enums.ScrapeType.SelectedSkip,
@@ -14552,6 +14719,19 @@ Public Class frmMain
 
     Private Sub Scraper_CreateList_Movieset(ByVal sType As Enums.ScrapeType, ByVal ScrapeOptions As Structures.ScrapeOptions, ByVal ScrapeModifiers As Structures.ScrapeModifiers)
         Dim DataRowList As New List(Of DataRow)
+        'ask if the existing data should be overwritten by the scraped data
+        Select Case sType
+            Case Enums.ScrapeType.MissingAuto, Enums.ScrapeType.MissingAsk, Enums.ScrapeType.MissingSkip
+                'only missing information is wanted -> keep the existing data
+                ScrapeOptions.bKeepExisting = True
+            Case Enums.ScrapeType.NewAuto, Enums.ScrapeType.NewAsk, Enums.ScrapeType.NewSkip
+                'new items -> there is no existing data
+            Case Else
+                If MessageBox.Show(Me, Master.eLang.GetString(1714, "Overwrite existing data?"), "Ember Media Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) = DialogResult.No Then
+                    'keep the existing data and only fill empty fields
+                    ScrapeOptions.bKeepExisting = True
+                End If
+        End Select
         Dim ScrapeList As New List(Of ScrapeItem)
 
         Select Case sType
@@ -14693,6 +14873,19 @@ Public Class frmMain
 
     Private Sub Scraper_CreateList_TVEpisode(ByVal sType As Enums.ScrapeType, ByVal ScrapeOptions As Structures.ScrapeOptions, ByVal ScrapeModifiers As Structures.ScrapeModifiers)
         Dim DataRowList As New List(Of DataRow)
+        'ask if the existing data should be overwritten by the scraped data
+        Select Case sType
+            Case Enums.ScrapeType.MissingAuto, Enums.ScrapeType.MissingAsk, Enums.ScrapeType.MissingSkip
+                'only missing information is wanted -> keep the existing data
+                ScrapeOptions.bKeepExisting = True
+            Case Enums.ScrapeType.NewAuto, Enums.ScrapeType.NewAsk, Enums.ScrapeType.NewSkip
+                'new items -> there is no existing data
+            Case Else
+                If MessageBox.Show(Me, Master.eLang.GetString(1714, "Overwrite existing data?"), "Ember Media Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) = DialogResult.No Then
+                    'keep the existing data and only fill empty fields
+                    ScrapeOptions.bKeepExisting = True
+                End If
+        End Select
         Dim ScrapeList As New List(Of ScrapeItem)
 
         Select Case sType
@@ -14954,7 +15147,23 @@ Public Class frmMain
 
     Private Sub Scraper_CreateList_TVShow(ByVal sType As Enums.ScrapeType, ByVal ScrapeOptions As Structures.ScrapeOptions, ByVal ScrapeModifiers As Structures.ScrapeModifiers)
         Dim DataRowList As New List(Of DataRow)
+        'ask if the existing data should be overwritten by the scraped data
+        Select Case sType
+            Case Enums.ScrapeType.MissingAuto, Enums.ScrapeType.MissingAsk, Enums.ScrapeType.MissingSkip
+                'only missing information is wanted -> keep the existing data
+                ScrapeOptions.bKeepExisting = True
+            Case Enums.ScrapeType.NewAuto, Enums.ScrapeType.NewAsk, Enums.ScrapeType.NewSkip
+                'new items -> there is no existing data
+            Case Else
+                If MessageBox.Show(Me, Master.eLang.GetString(1714, "Overwrite existing data?"), "Ember Media Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1) = DialogResult.No Then
+                    'keep the existing data and only fill empty fields
+                    ScrapeOptions.bKeepExisting = True
+                End If
+        End Select
         Dim ScrapeList As New List(Of ScrapeItem)
+
+        logger.Trace(String.Format("[TVScraper] [CreateList] type={0} withEpisodes={1} withSeasons={2} keepExisting={3}",
+                                   sType, ScrapeModifiers.withEpisodes, ScrapeModifiers.withSeasons, ScrapeOptions.bKeepExisting))
 
         Select Case sType
             Case Enums.ScrapeType.SelectedAsk, Enums.ScrapeType.SelectedAuto, Enums.ScrapeType.SelectedSkip,
@@ -15145,6 +15354,7 @@ Public Class frmMain
             If bwMovieScraper.CancellationPending Then Exit For
             OldTitle = tScrapeItem.DataRow.Item("Title").ToString
             bwMovieScraper.ReportProgress(1, OldTitle)
+            bwMovieScraper.ReportProgress(-4, Convert.ToInt64(tScrapeItem.DataRow.Item("idMovie")))
 
             Dim dScrapeRow As DataRow = tScrapeItem.DataRow
 
@@ -15153,7 +15363,7 @@ Public Class frmMain
             DBScrapeMovie = Master.DB.Load_Movie(Convert.ToInt64(tScrapeItem.DataRow.Item("idMovie")))
 
             If tScrapeItem.ScrapeModifiers.MainNFO Then
-                If Not ModulesManager.Instance.ScrapeData_Movie(DBScrapeMovie, tScrapeItem.ScrapeModifiers, Args.ScrapeType, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
+                If ModulesManager.Instance.ScrapeData_Movie(DBScrapeMovie, tScrapeItem.ScrapeModifiers, Args.ScrapeType, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
                     logger.Trace(String.Format("[Movie Scraper] [Cancelled] Scraping {0}", OldTitle))
                     Cancelled = True
                     If Args.ScrapeType = Enums.ScrapeType.SingleAuto OrElse Args.ScrapeType = Enums.ScrapeType.SingleField OrElse Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
@@ -15178,7 +15388,7 @@ Public Class frmMain
                     tScrapeItem.ScrapeModifiers.MainTrailer) Then
                     Dim tModifiers As New Structures.ScrapeModifiers With {.MainNFO = True}
                     Dim tOptions As New Structures.ScrapeOptions 'set all values to false to not override any field. ID's are always determined.
-                    If Not ModulesManager.Instance.ScrapeData_Movie(DBScrapeMovie, tModifiers, Args.ScrapeType, tOptions, Args.ScrapeList.Count = 1) Then
+                    If ModulesManager.Instance.ScrapeData_Movie(DBScrapeMovie, tModifiers, Args.ScrapeType, tOptions, Args.ScrapeList.Count = 1) Then
                         logger.Trace(String.Format("[Movie Scraper] [Cancelled] Scraping {0}", OldTitle))
                         Cancelled = True
                         If Args.ScrapeType = Enums.ScrapeType.SingleAuto OrElse Args.ScrapeType = Enums.ScrapeType.SingleField OrElse Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
@@ -15217,7 +15427,7 @@ Public Class frmMain
 
                     Dim SearchResultsContainer As New MediaContainers.SearchResultsContainer
                     bwMovieScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(254, "Scraping Images"), ":"))
-                    If ModulesManager.Instance.ScrapeImage_Movie(DBScrapeMovie, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
+                    If Not ModulesManager.Instance.ScrapeImage_Movie(DBScrapeMovie, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
                         If Args.ScrapeType = Enums.ScrapeType.SingleScrape AndAlso Master.eSettings.MovieImagesDisplayImageSelect Then
                             Using dImgSelect As New dlgImgSelect
                                 If dImgSelect.ShowDialog(DBScrapeMovie, SearchResultsContainer, tScrapeItem.ScrapeModifiers) = DialogResult.OK Then
@@ -15237,7 +15447,7 @@ Public Class frmMain
                 If tScrapeItem.ScrapeModifiers.MainTheme Then
                     bwMovieScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(266, "Scraping Themes"), ":"))
                     Dim SearchResults As New List(Of MediaContainers.MediaFile)
-                    If ModulesManager.Instance.ScrapeTheme_Movie(DBScrapeMovie, Enums.ModifierType.MainTheme, SearchResults) Then
+                    If Not ModulesManager.Instance.ScrapeTheme_Movie(DBScrapeMovie, Enums.ModifierType.MainTheme, SearchResults) Then
                         If Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
                             Using dThemeSelect As New dlgMediaFileSelect(Enums.ModifierType.MainTheme, True)
                                 If dThemeSelect.ShowDialog(DBScrapeMovie, SearchResults) = DialogResult.OK Then
@@ -15261,7 +15471,7 @@ Public Class frmMain
                 If tScrapeItem.ScrapeModifiers.MainTrailer Then
                     bwMovieScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(574, "Scraping Trailers"), ":"))
                     Dim SearchResults As New List(Of MediaContainers.MediaFile)
-                    If ModulesManager.Instance.ScrapeTrailer_Movie(DBScrapeMovie, Enums.ModifierType.MainTrailer, SearchResults) Then
+                    If Not ModulesManager.Instance.ScrapeTrailer_Movie(DBScrapeMovie, Enums.ModifierType.MainTrailer, SearchResults) Then
                         If Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
                             Using dTrailerSelect As New dlgMediaFileSelect(Enums.ModifierType.MainTrailer, True)
                                 If dTrailerSelect.ShowDialog(DBScrapeMovie, SearchResults) = DialogResult.OK Then
@@ -15320,6 +15530,7 @@ Public Class frmMain
             OldTitle = tScrapeItem.DataRow.Item("Title").ToString
             OldTMDBColID = tScrapeItem.DataRow.Item("TMDBColID").ToString
             bwMovieSetScraper.ReportProgress(1, OldTitle)
+            bwMovieSetScraper.ReportProgress(-4, Convert.ToInt64(tScrapeItem.DataRow.Item("idSet")))
 
             Dim dScrapeRow As DataRow = tScrapeItem.DataRow
 
@@ -15331,7 +15542,7 @@ Public Class frmMain
 
             If tScrapeItem.ScrapeModifiers.MainNFO Then
                 bwMovieSetScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(253, "Scraping Data"), ":"))
-                If Not ModulesManager.Instance.ScrapeData_Movieset(DBScrapeMovieSet, tScrapeItem.ScrapeModifiers, Args.ScrapeType, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
+                If ModulesManager.Instance.ScrapeData_Movieset(DBScrapeMovieSet, tScrapeItem.ScrapeModifiers, Args.ScrapeType, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
                     logger.Trace(String.Format("[MovieSet Scraper] [Cancelled] Scraping {0}", OldTitle))
                     Cancelled = True
                     If Args.ScrapeType = Enums.ScrapeType.SingleAuto OrElse Args.ScrapeType = Enums.ScrapeType.SingleField OrElse Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
@@ -15350,7 +15561,7 @@ Public Class frmMain
                     tScrapeItem.ScrapeModifiers.MainLandscape Or
                     tScrapeItem.ScrapeModifiers.MainPoster) Then
                     Dim tOpt As New Structures.ScrapeOptions 'all false value not to override any field
-                    If Not ModulesManager.Instance.ScrapeData_Movieset(DBScrapeMovieSet, tScrapeItem.ScrapeModifiers, Args.ScrapeType, tOpt, Args.ScrapeList.Count = 1) Then
+                    If ModulesManager.Instance.ScrapeData_Movieset(DBScrapeMovieSet, tScrapeItem.ScrapeModifiers, Args.ScrapeType, tOpt, Args.ScrapeList.Count = 1) Then
                         logger.Trace(String.Format("[MovieSet Scraper] [Cancelled] Scraping {0}", OldTitle))
                         Exit For
                     End If
@@ -15380,7 +15591,7 @@ Public Class frmMain
 
                     Dim SearchResultsContainer As New MediaContainers.SearchResultsContainer
                     bwMovieSetScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(254, "Scraping Images"), ":"))
-                    If ModulesManager.Instance.ScrapeImage_Movieset(DBScrapeMovieSet, SearchResultsContainer, tScrapeItem.ScrapeModifiers) Then
+                    If Not ModulesManager.Instance.ScrapeImage_Movieset(DBScrapeMovieSet, SearchResultsContainer, tScrapeItem.ScrapeModifiers) Then
                         If Args.ScrapeType = Enums.ScrapeType.SingleScrape AndAlso Master.eSettings.MovieImagesDisplayImageSelect Then
                             Using dImgSelect As New dlgImgSelect
                                 If dImgSelect.ShowDialog(DBScrapeMovieSet, SearchResultsContainer, tScrapeItem.ScrapeModifiers) = DialogResult.OK Then
@@ -15428,6 +15639,7 @@ Public Class frmMain
             If bwTVEpisodeScraper.CancellationPending Then Exit For
             OldEpisodeTitle = tScrapeItem.DataRow.Item("Title").ToString
             bwTVEpisodeScraper.ReportProgress(1, OldEpisodeTitle)
+            bwTVEpisodeScraper.ReportProgress(-4, Convert.ToInt64(tScrapeItem.DataRow.Item("idEpisode")))
 
             Dim dScrapeRow As DataRow = tScrapeItem.DataRow
 
@@ -15438,7 +15650,7 @@ Public Class frmMain
 
             If tScrapeItem.ScrapeModifiers.EpisodeNFO Then
                 bwTVEpisodeScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(253, "Scraping Data"), ":"))
-                If Not ModulesManager.Instance.ScrapeData_TVEpisode(DBScrapeEpisode, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
+                If ModulesManager.Instance.ScrapeData_TVEpisode(DBScrapeEpisode, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
                     Cancelled = True
                     If Args.ScrapeType = Enums.ScrapeType.SingleAuto OrElse Args.ScrapeType = Enums.ScrapeType.SingleField OrElse Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
                         logger.Trace(String.Concat("Canceled scraping: ", OldEpisodeTitle))
@@ -15460,7 +15672,7 @@ Public Class frmMain
                     tScrapeItem.ScrapeModifiers.MainPoster Or
                     tScrapeItem.ScrapeModifiers.MainTheme) Then
                     Dim tOpt As New Structures.ScrapeOptions 'all false value not to override any field
-                    If Not ModulesManager.Instance.ScrapeData_TVEpisode(DBScrapeEpisode, tOpt, Args.ScrapeList.Count = 1) Then
+                    If ModulesManager.Instance.ScrapeData_TVEpisode(DBScrapeEpisode, tOpt, Args.ScrapeList.Count = 1) Then
                         Exit For
                     End If
                 End If
@@ -15485,7 +15697,7 @@ Public Class frmMain
                     tScrapeItem.ScrapeModifiers.EpisodePoster Then
                     Dim SearchResultsContainer As New MediaContainers.SearchResultsContainer
                     bwTVEpisodeScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(265, "Scraping Episode Images"), ":"))
-                    If ModulesManager.Instance.ScrapeImage_TV(DBScrapeEpisode, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
+                    If Not ModulesManager.Instance.ScrapeImage_TV(DBScrapeEpisode, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
                         If Args.ScrapeType = Enums.ScrapeType.SingleScrape AndAlso Master.eSettings.TVImagesDisplayImageSelect Then
                             Using dImgSelect As New dlgImgSelect
                                 If dImgSelect.ShowDialog(DBScrapeEpisode, SearchResultsContainer, tScrapeItem.ScrapeModifiers) = DialogResult.OK Then
@@ -15533,6 +15745,8 @@ Public Class frmMain
 
             Dim dScrapeRow As DataRow = tScrapeItem.DataRow
 
+            bwTVSeasonScraper.ReportProgress(-4, Convert.ToInt64(tScrapeItem.DataRow.Item("idSeason")))
+
             DBScrapeSeason = Master.DB.Load_TVSeason(Convert.ToInt64(tScrapeItem.DataRow.Item("idSeason")), True, False)
             'ModulesManager.Instance.RunGeneric(Enums.ModuleEventType.BeforeEdit_Movie, Nothing, DBScrapeMovie)
 
@@ -15576,7 +15790,7 @@ Public Class frmMain
 
                     Dim SearchResultsContainer As New MediaContainers.SearchResultsContainer
                     bwTVSeasonScraper.ReportProgress(-3, "Scraping Season Images:")
-                    If ModulesManager.Instance.ScrapeImage_TV(DBScrapeSeason, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
+                    If Not ModulesManager.Instance.ScrapeImage_TV(DBScrapeSeason, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
                         If Args.ScrapeType = Enums.ScrapeType.SingleScrape AndAlso Master.eSettings.TVImagesDisplayImageSelect Then
                             Using dImgSelect As New dlgImgSelect
                                 If dImgSelect.ShowDialog(DBScrapeSeason, SearchResultsContainer, tScrapeItem.ScrapeModifiers) = DialogResult.OK Then
@@ -15625,6 +15839,7 @@ Public Class frmMain
             If bwTVScraper.CancellationPending Then Exit For
             OldTitle = tScrapeItem.DataRow.Item("ListTitle").ToString
             bwTVScraper.ReportProgress(1, OldTitle)
+            bwTVScraper.ReportProgress(-4, Convert.ToInt64(tScrapeItem.DataRow.Item("idShow")))
 
             Dim dScrapeRow As DataRow = tScrapeItem.DataRow
 
@@ -15637,7 +15852,7 @@ Public Class frmMain
                 (tScrapeItem.ScrapeModifiers.withEpisodes AndAlso tScrapeItem.ScrapeModifiers.EpisodeNFO) OrElse
                 (tScrapeItem.ScrapeModifiers.withSeasons AndAlso tScrapeItem.ScrapeModifiers.SeasonNFO)) Then
                 bwTVScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(253, "Scraping Data"), ":"))
-                If Not ModulesManager.Instance.ScrapeData_TVShow(DBScrapeShow, tScrapeItem.ScrapeModifiers, Args.ScrapeType, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
+                If ModulesManager.Instance.ScrapeData_TVShow(DBScrapeShow, tScrapeItem.ScrapeModifiers, Args.ScrapeType, Args.ScrapeOptions, Args.ScrapeList.Count = 1) Then
                     Cancelled = True
                     If Args.ScrapeType = Enums.ScrapeType.SingleAuto OrElse Args.ScrapeType = Enums.ScrapeType.SingleField OrElse Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
                         logger.Trace(String.Concat("Canceled scraping: ", OldTitle))
@@ -15659,7 +15874,7 @@ Public Class frmMain
                     tScrapeItem.ScrapeModifiers.MainPoster Or
                     tScrapeItem.ScrapeModifiers.MainTheme) Then
                     Dim tOpt As New Structures.ScrapeOptions 'all false value not to override any field
-                    If Not ModulesManager.Instance.ScrapeData_TVShow(DBScrapeShow, tScrapeItem.ScrapeModifiers, Args.ScrapeType, tOpt, Args.ScrapeList.Count = 1) Then
+                    If ModulesManager.Instance.ScrapeData_TVShow(DBScrapeShow, tScrapeItem.ScrapeModifiers, Args.ScrapeType, tOpt, Args.ScrapeList.Count = 1) Then
                         Exit For
                     End If
                 End If
@@ -15677,7 +15892,7 @@ Public Class frmMain
                 'get all images
                 Dim SearchResultsContainer As New MediaContainers.SearchResultsContainer
                 bwTVScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(254, "Scraping Images"), ":"))
-                If ModulesManager.Instance.ScrapeImage_TV(DBScrapeShow, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
+                If Not ModulesManager.Instance.ScrapeImage_TV(DBScrapeShow, SearchResultsContainer, tScrapeItem.ScrapeModifiers, Args.ScrapeList.Count = 1) Then
                     If Args.ScrapeType = Enums.ScrapeType.SingleScrape AndAlso Master.eSettings.TVImagesDisplayImageSelect Then
                         Using dImgSelect As New dlgImgSelect
                             If dImgSelect.ShowDialog(DBScrapeShow, SearchResultsContainer, tScrapeItem.ScrapeModifiers) = DialogResult.OK Then
@@ -15696,7 +15911,7 @@ Public Class frmMain
                 If tScrapeItem.ScrapeModifiers.MainTheme Then
                     bwTVScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(266, "Scraping Themes"), ":"))
                     Dim SearchResults As New List(Of MediaContainers.MediaFile)
-                    If ModulesManager.Instance.ScrapeTheme_TVShow(DBScrapeShow, Enums.ModifierType.MainTheme, SearchResults) Then
+                    If Not ModulesManager.Instance.ScrapeTheme_TVShow(DBScrapeShow, Enums.ModifierType.MainTheme, SearchResults) Then
                         If Args.ScrapeType = Enums.ScrapeType.SingleScrape Then
                             Using dThemeSelect As New dlgMediaFileSelect(Enums.ModifierType.MainTheme, True)
                                 If dThemeSelect.ShowDialog(DBScrapeShow, SearchResults) = DialogResult.OK Then
@@ -15727,6 +15942,10 @@ Public Class frmMain
                 If Not (Args.ScrapeType = Enums.ScrapeType.SingleScrape) Then
                     ModulesManager.Instance.RunGeneric(Enums.ModuleEventType.ScraperMulti_TVShow, Nothing, Nothing, False, DBScrapeShow)
                     bwTVScraper.ReportProgress(-3, String.Concat(Master.eLang.GetString(399, "Downloading and Saving Contents into Database"), ":"))
+                    Dim dbgEpisode As Database.DBElement = DBScrapeShow.Episodes.Where(Function(f) f.TVEpisode.Season = 1 AndAlso f.TVEpisode.Episode = 1).FirstOrDefault()
+                    If dbgEpisode IsNot Nothing Then
+                        logger.Trace(String.Format("[TVScraper] before save - S01E01 title: '{0}' | imdb: '{1}' | plot: {2}", dbgEpisode.TVEpisode.Title, dbgEpisode.TVEpisode.UniqueIDs.IMDbId, dbgEpisode.TVEpisode.Plot.Length))
+                    End If
                     Master.DB.Save_TVShow(DBScrapeShow, False, tScrapeItem.ScrapeModifiers.MainNFO OrElse tScrapeItem.ScrapeModifiers.MainMeta, True, tScrapeItem.ScrapeModifiers.withEpisodes)
                     bwTVScraper.ReportProgress(-2, DBScrapeShow.ID)
                     bwTVScraper.ReportProgress(-1, If(Not OldTitle = NewTitle, String.Format(Master.eLang.GetString(812, "Old Title: {0} | New Title: {1}"), OldTitle, NewTitle), NewTitle))
@@ -15747,6 +15966,9 @@ Public Class frmMain
             DataGridView_Row_Update_Movie(CLng(e.UserState))
         ElseIf e.ProgressPercentage = -3 Then
             tslLoading.Text = e.UserState.ToString
+        ElseIf e.ProgressPercentage = -4 Then
+            'the item which is scraped right now - scroll the list to it
+            DataGridView_AutoScroll_ToRow(Enums.ContentType.Movie, CLng(e.UserState))
         Else
             tspbLoading.Value += e.ProgressPercentage
             SetStatus(e.UserState.ToString)
@@ -15760,6 +15982,9 @@ Public Class frmMain
             DataGridView_Row_Update_Movieset(CLng(e.UserState))
         ElseIf e.ProgressPercentage = -3 Then
             tslLoading.Text = e.UserState.ToString
+        ElseIf e.ProgressPercentage = -4 Then
+            'the item which is scraped right now - scroll the list to it
+            DataGridView_AutoScroll_ToRow(Enums.ContentType.MovieSet, CLng(e.UserState))
         Else
             tspbLoading.Value += e.ProgressPercentage
             SetStatus(e.UserState.ToString)
@@ -15773,6 +15998,9 @@ Public Class frmMain
             DataGridView_Row_Update_TVEpisode(CLng(e.UserState))
         ElseIf e.ProgressPercentage = -3 Then
             tslLoading.Text = e.UserState.ToString
+        ElseIf e.ProgressPercentage = -4 Then
+            'the item which is scraped right now - scroll the list to it
+            DataGridView_AutoScroll_ToRow(Enums.ContentType.TVEpisode, CLng(e.UserState))
         Else
             tspbLoading.Value += e.ProgressPercentage
             SetStatus(e.UserState.ToString)
@@ -15786,6 +16014,9 @@ Public Class frmMain
             DataGridView_Row_Update_TVSeason(CLng(e.UserState))
         ElseIf e.ProgressPercentage = -3 Then
             tslLoading.Text = e.UserState.ToString
+        ElseIf e.ProgressPercentage = -4 Then
+            'the item which is scraped right now - scroll the list to it
+            DataGridView_AutoScroll_ToRow(Enums.ContentType.TVSeason, CLng(e.UserState))
         Else
             tspbLoading.Value += e.ProgressPercentage
             SetStatus(e.UserState.ToString)
@@ -15799,6 +16030,9 @@ Public Class frmMain
             DataGridView_Row_Update_TVShow(CLng(e.UserState))
         ElseIf e.ProgressPercentage = -3 Then
             tslLoading.Text = e.UserState.ToString
+        ElseIf e.ProgressPercentage = -4 Then
+            'the item which is scraped right now - scroll the list to it
+            DataGridView_AutoScroll_ToRow(Enums.ContentType.TVShow, CLng(e.UserState))
         Else
             tspbLoading.Value += e.ProgressPercentage
             SetStatus(e.UserState.ToString)
@@ -15835,6 +16069,9 @@ Public Class frmMain
             pnlCancel.Visible = False
             SetControlsEnabled(True)
         End If
+
+        'show the collected notifications right away instead of waiting for the quiet period
+        Notifications.FlushNotifications()
     End Sub
 
     Private Sub Scraper_RunWorkerCompleted_Movieset(ByVal sender As Object, ByVal e As System.ComponentModel.RunWorkerCompletedEventArgs) Handles bwMovieSetScraper.RunWorkerCompleted
@@ -15866,6 +16103,9 @@ Public Class frmMain
             pnlCancel.Visible = False
             SetControlsEnabled(True)
         End If
+
+        'show the collected notifications right away instead of waiting for the quiet period
+        Notifications.FlushNotifications()
     End Sub
 
     Private Sub Scraper_RunWorkerCompleted_TVEpisode(ByVal sender As Object, ByVal e As System.ComponentModel.RunWorkerCompletedEventArgs) Handles bwTVEpisodeScraper.RunWorkerCompleted
@@ -15897,6 +16137,9 @@ Public Class frmMain
             pnlCancel.Visible = False
             SetControlsEnabled(True)
         End If
+
+        'show the collected notifications right away instead of waiting for the quiet period
+        Notifications.FlushNotifications()
     End Sub
 
     Private Sub Scraper_RunWorkerCompleted_TVSeason(ByVal sender As Object, ByVal e As System.ComponentModel.RunWorkerCompletedEventArgs) Handles bwTVSeasonScraper.RunWorkerCompleted
@@ -15928,6 +16171,9 @@ Public Class frmMain
             pnlCancel.Visible = False
             SetControlsEnabled(True)
         End If
+
+        'show the collected notifications right away instead of waiting for the quiet period
+        Notifications.FlushNotifications()
     End Sub
 
     Private Sub Scraper_RunWorkerCompleted_TVShow(ByVal sender As Object, ByVal e As System.ComponentModel.RunWorkerCompletedEventArgs) Handles bwTVScraper.RunWorkerCompleted
@@ -15959,6 +16205,9 @@ Public Class frmMain
             pnlCancel.Visible = False
             SetControlsEnabled(True)
         End If
+
+        'show the collected notifications right away instead of waiting for the quiet period
+        Notifications.FlushNotifications()
     End Sub
 
     Private Sub Scraper_Finishing_Movie(ByRef DBMovie As Database.DBElement)
@@ -16326,6 +16575,9 @@ Public Class frmMain
                     Case Enums.ContentType.TVShow
                         DataGridView_Row_Update_TVShow(progressValue.ID)
                 End Select
+
+                'let the list follow the item which is currently processed
+                DataGridView_AutoScroll_ToRow(progressValue.ContentType, progressValue.ID)
 
             Case Enums.TaskManagerEventType.SimpleMessage
                 SetStatus(progressValue.Message)
@@ -18509,7 +18761,37 @@ Public Class frmMain
     End Sub
 
     Private Sub ShowNotification(ByVal timeout As Integer, ByVal title As String, ByVal message As String, ByVal icon As ToolTipIcon)
-        TrayIcon.ShowBalloonTip(timeout, title, message, icon)
+        'the collected notifications are raised from a background thread
+        If Me.InvokeRequired Then
+            Try
+                BeginInvoke(New MethodInvoker(Sub() ShowNotification(timeout, title, message, icon)))
+            Catch ex As Exception
+                logger.Error(ex, New StackFrame().GetMethod().Name)
+            End Try
+
+            Return
+        End If
+
+        Try
+            TrayIcon.ShowBalloonTip(timeout, title, message, icon)
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+
+    Private Sub Notification_CollectionStatusChanged(ByVal status As String)
+        'the collected notifications are raised from a background thread
+        If Me.InvokeRequired Then
+            Try
+                BeginInvoke(New MethodInvoker(Sub() Notification_CollectionStatusChanged(status)))
+            Catch ex As Exception
+                logger.Error(ex, New StackFrame().GetMethod().Name)
+            End Try
+
+            Return
+        End If
+
+        SetStatus(status)
     End Sub
 
     Private Sub SetControlsEnabled(ByVal isEnabled As Boolean, Optional ByVal withLists As Boolean = False, Optional ByVal withTools As Boolean = True)

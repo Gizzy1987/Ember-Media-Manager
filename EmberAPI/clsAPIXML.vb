@@ -461,6 +461,17 @@ Public Class APIXML
     Public Shared Function GetRatingFlag(ByVal ratingProvider As String) As Image
         Dim imgRating As Image = Nothing
         Dim ratingFlag = Flags.FirstOrDefault(Function(f) f.Name = ratingProvider AndAlso f.Type = FlagType.Rating)
+        If ratingFlag Is Nothing AndAlso Not String.IsNullOrEmpty(ratingProvider) Then
+            'Fallback 1: "tomatometeravgcritics" ist die Kritiker-Durchschnittsnote von Rotten Tomatoes
+            'und teilt sich das Logo mit "tomatometerallcritics" (kein eigenes Flag-Bild vorhanden)
+            If ratingProvider.ToLower.StartsWith("tomatometer") Then
+                ratingFlag = Flags.FirstOrDefault(Function(f) f.Name = "tomatometerallcritics" AndAlso f.Type = FlagType.Rating)
+            End If
+        End If
+        If ratingFlag Is Nothing Then
+            'Fallback 2: unbekannter Anbieter -> Standard-Stern statt leerem Symbol
+            ratingFlag = Flags.FirstOrDefault(Function(f) f.Name = "default" AndAlso f.Type = FlagType.Rating)
+        End If
         If ratingFlag IsNot Nothing Then
             Return ratingFlag.Image
         Else
@@ -497,6 +508,30 @@ Public Class APIXML
         End Try
 
         Return imgRating
+    End Function
+
+    ''' <summary>
+    ''' Returns the display name of a certification, e.g. "Germany:12" becomes "FSK 12".
+    ''' </summary>
+    ''' <remarks>The searchstring of the rating list is used to match the value
+    ''' returned by the scraper. The optional displayname from the rating list is
+    ''' used for the output, so the NFO gets a proper FSK label instead of the
+    ''' internal "Country:Rating" notation. For series the TV part of the rating
+    ''' list is used, otherwise the movie list.</remarks>
+    Public Shared Function GetCertificationDisplayName(ByVal certification As String, Optional ByVal isTV As Boolean = False) As String
+        If String.IsNullOrEmpty(certification) Then Return String.Empty
+
+        Dim ratingList As List(Of RatingProperty) = If(isTV, RatingXml.TV, RatingXml.Movies)
+
+        Dim v = ratingList.FirstOrDefault(Function(f) f.Searchstring = certification)
+        If v Is Nothing Then
+            v = ratingList.FirstOrDefault(Function(f) certification.ToLower.StartsWith(f.Searchstring.ToLower))
+        End If
+
+        If v IsNot Nothing AndAlso Not String.IsNullOrEmpty(v.DisplayName) Then Return v.DisplayName
+
+        If certification.Contains(":") Then Return certification.Split(Convert.ToChar(":"))(1)
+        Return certification
     End Function
 
     Public Shared Function GetRatingList_Movie() As Object()

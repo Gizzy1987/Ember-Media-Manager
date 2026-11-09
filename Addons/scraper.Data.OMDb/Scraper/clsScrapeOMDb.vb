@@ -73,7 +73,7 @@ Public Class Scraper
     ''' </summary>
     ''' <param name="ImdbId">IMDb ID of movie to be scraped</param>
     ''' <returns>True: success, false: no success</returns>
-    Public Function GetRatingsByImbId(ByVal ImdbId As String, ByVal contentType As Enums.ContentType, ByVal FilteredOptions As Structures.ScrapeOptions) As MediaContainers.RatingContainer
+    Public Function GetRatingsByImbId(ByVal ImdbId As String, ByVal contentType As Enums.ContentType, ByVal FilteredOptions As Structures.ScrapeOptions, Optional ByVal strTitle As String = "", Optional ByVal strOriginalTitle As String = "", Optional ByVal strYear As String = "") As MediaContainers.RatingContainer
         If String.IsNullOrEmpty(ImdbId) Then Return Nothing
 
         Dim APIResult As Task(Of OpenMovieDatabase.Models.Movie) = Nothing
@@ -87,12 +87,24 @@ Public Class Scraper
             Return Nothing
         End If
 
-        If APIResult Is Nothing OrElse APIResult.Result Is Nothing OrElse String.IsNullOrEmpty(APIResult.Result.ImdbId) OrElse APIResult.Exception IsNot Nothing Then
+        If APIResult Is Nothing OrElse APIResult.Exception IsNot Nothing Then
+            _Logger.Error(String.Format("Can't scrape or movie/tvshow/epissode not found with IMDb ID [0]", ImdbId))
+            Return Nothing
+        End If
+
+        If APIResult.Result Is Nothing OrElse String.IsNullOrEmpty(APIResult.Result.ImdbId) Then
             _Logger.Error(String.Format("Can't scrape or movie/tvshow/epissode not found with IMDb ID [0]", ImdbId))
             Return Nothing
         End If
 
         Dim Result As OpenMovieDatabase.Models.Movie = APIResult.Result
+
+        'the found movie must fit to the media file, otherwise the ratings belong to another movie
+        If Not IsMatchingMovie(strTitle, strOriginalTitle, strYear, Result) Then
+            _Logger.Warn(String.Format("[OMDb_Data] [GetRatingsByImbId] The movie '{0}' does not fit to '{1}' - no ratings were taken over", Result.Title, If(String.IsNullOrEmpty(strOriginalTitle), strTitle, strOriginalTitle)))
+            Return Nothing
+        End If
+
         Dim nRatings As New MediaContainers.RatingContainer(contentType)
 
         'Rating
@@ -140,6 +152,24 @@ Public Class Scraper
             Next
         End If
         Return nRatings
+    End Function
+    ''' <summary>
+    ''' Checks if the found movie fits to the movie of the media file. The title and the
+    ''' original title of the media file are compared with the title of the result.
+    ''' </summary>
+    Private Function IsMatchingMovie(ByVal strTitle As String, ByVal strOriginalTitle As String, ByVal strYear As String, ByVal Result As OpenMovieDatabase.Models.Movie) As Boolean
+        'no title to compare with -> nothing to check
+        If String.IsNullOrEmpty(strTitle) AndAlso String.IsNullOrEmpty(strOriginalTitle) Then Return True
+
+        Dim nSourceYear As Integer = StringUtils.GetYearFromString(strYear)
+        Dim nResultYear As Integer = StringUtils.GetYearFromString(Result.Year)
+
+        For Each strSource As String In New String() {strTitle, strOriginalTitle}
+            If String.IsNullOrEmpty(strSource) Then Continue For
+            If StringUtils.IsSearchMatch(strSource, nSourceYear, Result.Title, String.Empty, nResultYear) Then Return True
+        Next
+
+        Return False
     End Function
 
 #End Region 'Methods

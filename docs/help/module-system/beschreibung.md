@@ -17,7 +17,7 @@ Ember Media Manager is built around a loadable module system: all scrapers, tool
 ## Examples (module kinds)
 
 - Generic module: Bulk Renamer, Media File Manager, Tag Manager
-- Interface module: Kodi interface, Trakt.tv interface
+- Interface module: Jellyfin interface, Trakt.tv interface
 - Scraper module: `scraper.Data.IMDB`, `scraper.Image.FanartTV`, `scraper.Trailer.YouTube`, `scraper.Theme.TelevisionTunes`
 
 ## Limitations

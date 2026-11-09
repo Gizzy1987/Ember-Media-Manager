@@ -14,7 +14,7 @@ inputs:
   solution-path:
     description: Path to the solution file to scan.
     required: false
-    default: Ember Media Manager.sln
+    default: Ember Media Manager for Jellyfin.sln
   artifact-name:
     description: Name of the uploaded scan-log artifact.
     required: false

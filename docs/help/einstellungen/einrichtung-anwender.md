@@ -20,13 +20,13 @@ Basic configuration after installation: choose a profile, add sources, set file 
 
 ### 3. Define file naming and content
 
-- Check the NFO/artwork schema per content type (default: Kodi schema).
+- Check the NFO/artwork schema per content type (default: Jellyfin schema).
 - Enable the desired image types and fields (poster, fanart, extrathumbs, trailer, theme …).
 
 ### 4. Enable scrapers and modules
 
 1. In the scraper areas per content type enable the data, image, trailer and theme scrapers and set the *Scrape Order* (see [Scrapers — Setup](../scraper/einrichtung-anwender.md)).
-2. Enable generic modules (tools, Kodi, Trakt) and configure their panels.
+2. Enable generic modules (tools, Jellyfin, Trakt) and configure their panels.
 3. *Apply* — on "Setup Needs Restart" restart the application.
 
 ### 5. Fill the library for the first time

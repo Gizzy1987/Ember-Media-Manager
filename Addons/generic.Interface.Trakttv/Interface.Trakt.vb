@@ -394,7 +394,7 @@ Public Class Addon
     ''' <param name="sender">context menu "Get TVSeason Playcount"</param>
     ''' <remarks>
     ''' 2015/06/27 Cocotus - First implementation
-    ''' Update details of season in Kodi DB
+    ''' Update details of season in Jellyfin DB
     ''' </remarks>
     Private Sub cmnuGetWatchedState_TVSeason_Click(ByVal sender As Object, ByVal e As EventArgs)
         Dim lstWatchedShows = _TraktAPI.GetWatched_TVShows

@@ -282,7 +282,7 @@ Public Class OMDb_Data
 
         If ScrapeModifiers.MainNFO AndAlso Not ScrapeModifiers.DoSearch AndAlso _OMDbAPI_Movie.IsClientCreated Then
             If oDBElement.Movie.UniqueIDs.IMDbIdSpecified Then
-                Dim nRatings = _OMDbAPI_Movie.GetRatingsByImbId(oDBElement.Movie.UniqueIDs.IMDbId, oDBElement.ContentType, FilteredOptions)
+                Dim nRatings = _OMDbAPI_Movie.GetRatingsByImbId(oDBElement.Movie.UniqueIDs.IMDbId, oDBElement.ContentType, FilteredOptions, oDBElement.Movie.Title, oDBElement.Movie.OriginalTitle, oDBElement.Movie.Year)
                 If nRatings IsNot Nothing Then
                     nMovie = New MediaContainers.Movie With {.Ratings = nRatings}
                 End If
@@ -311,7 +311,7 @@ Public Class OMDb_Data
 
         If ScrapeModifiers.MainNFO AndAlso Not ScrapeModifiers.DoSearch AndAlso _OMDbAPI_TV.IsClientCreated Then
             If oDBElement.TVShow.UniqueIDs.IMDbIdSpecified Then
-                Dim nRatings = _OMDbAPI_TV.GetRatingsByImbId(oDBElement.TVShow.UniqueIDs.IMDbId, oDBElement.ContentType, FilteredOptions)
+                Dim nRatings = _OMDbAPI_TV.GetRatingsByImbId(oDBElement.TVShow.UniqueIDs.IMDbId, oDBElement.ContentType, FilteredOptions, oDBElement.TVShow.Title, oDBElement.TVShow.OriginalTitle, oDBElement.TVShow.Premiered)
                 If nRatings IsNot Nothing Then
                     nTVshow = New MediaContainers.TVShow With {.Ratings = nRatings}
                 End If

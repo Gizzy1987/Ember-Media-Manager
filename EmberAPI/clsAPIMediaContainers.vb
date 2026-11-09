@@ -197,7 +197,7 @@ Namespace MediaContainers
         End Property
 
         <XmlElement("uniqueid")>
-        Public Property UniqueIDs_Kodi() As Uniqueid()
+        Public Property UniqueIDs_Jellyfin() As Uniqueid()
             Get
                 Return UniqueIDs.Items.ToArray
             End Get
@@ -251,7 +251,8 @@ Namespace MediaContainers
             Get
                 Dim nRating = Ratings.GetDefaultRating()
                 If nRating IsNot Nothing Then
-                    Return nRating.ValueNormalized.ToString
+                    'Jellyfin erwartet einen Punkt als Dezimaltrenner
+                    Return nRating.ValueNormalized.ToString(Globalization.CultureInfo.InvariantCulture)
                 Else
                     Return String.Empty
                 End If
@@ -264,13 +265,15 @@ Namespace MediaContainers
                                    dblRatings
                                    ) Then
                     _rating = dblRatings
-                    If Not _votes = 0 Then Ratings.Add(New RatingDetails With {
-                                                       .IsDefault = True,
-                                                       .Max = If(_rating <= 10, 10, 100),
-                                                       .Type = "default",
-                                                       .Value = _rating,
-                                                       .Votes = _votes
-                                                       })
+                    'Eine Bewertung ohne Votes geht sonst verloren - daher wird
+                    'mindestens eine Stimme eingetragen.
+                    Ratings.Add(New RatingDetails With {
+                                          .IsDefault = True,
+                                          .Max = If(_rating <= 10, 10, 100),
+                                          .Type = "default",
+                                          .Value = _rating,
+                                          .Votes = If(_votes = 0, 1, _votes)
+                                          })
                 Else
                     _rating = 0
                 End If
@@ -332,7 +335,7 @@ Namespace MediaContainers
 
         <XmlArray("ratings")>
         <XmlArrayItem("rating")>
-        Public Property Ratings_Kodi() As RatingDetails()
+        Public Property Ratings_Jellyfin() As RatingDetails()
             Get
                 Return Ratings.Items.ToArray
             End Get
@@ -481,7 +484,9 @@ Namespace MediaContainers
             End Get
         End Property
 
-        <XmlElement("fileinfo")>
+        'Die Jellyfin-Sektion fileinfo/streamdetails wird nicht ins NFO geschrieben.
+        'Jellyfin liest die Streams direkt aus der Mediendatei.
+        <XmlIgnore()>
         Public Property FileInfo() As New Fileinfo
 
         <XmlIgnore()>
@@ -1162,6 +1167,7 @@ Namespace MediaContainers
         Private _tags As New List(Of String)
         Private _votes As Integer = 0
         Private _year As String = String.Empty
+        Private _watched As Boolean = False
 
 #End Region 'Fields
 
@@ -1202,6 +1208,16 @@ Namespace MediaContainers
             End Get
         End Property
 
+        <XmlElement("tmdbid")>
+        Public Property TMDbIdNode() As String = String.Empty
+
+        <XmlIgnore()>
+        Public ReadOnly Property TMDbIdNodeSpecified() As Boolean
+            Get
+                Return Not String.IsNullOrEmpty(TMDbIdNode)
+            End Get
+        End Property
+
         <XmlElement("tmdbcolid")>
         Public Property TMDbCollectionId() As String
             Get
@@ -1231,7 +1247,7 @@ Namespace MediaContainers
         End Property
 
         <XmlElement("uniqueid")>
-        Public Property UniqueIDs_Kodi() As Uniqueid()
+        Public Property UniqueIDs_Jellyfin() As Uniqueid()
             Get
                 Return UniqueIDs.Items.ToArray
             End Get
@@ -1379,7 +1395,8 @@ Namespace MediaContainers
             Get
                 Dim nRating = Ratings.GetDefaultRating()
                 If nRating IsNot Nothing Then
-                    Return nRating.ValueNormalized.ToString
+                    'Jellyfin erwartet einen Punkt als Dezimaltrenner
+                    Return nRating.ValueNormalized.ToString(Globalization.CultureInfo.InvariantCulture)
                 Else
                     Return String.Empty
                 End If
@@ -1392,13 +1409,15 @@ Namespace MediaContainers
                                    dblRatings
                                    ) Then
                     _rating = dblRatings
-                    If Not _votes = 0 Then Ratings.Add(New RatingDetails With {
-                                                       .IsDefault = True,
-                                                       .Max = If(_rating <= 10, 10, 100),
-                                                       .Type = "default",
-                                                       .Value = _rating,
-                                                       .Votes = _votes
-                                                       })
+                    'Eine Bewertung ohne Votes geht sonst verloren - daher wird
+                    'mindestens eine Stimme eingetragen.
+                    Ratings.Add(New RatingDetails With {
+                                          .IsDefault = True,
+                                          .Max = If(_rating <= 10, 10, 100),
+                                          .Type = "default",
+                                          .Value = _rating,
+                                          .Votes = If(_votes = 0, 1, _votes)
+                                          })
                 Else
                     _rating = 0
                 End If
@@ -1460,7 +1479,7 @@ Namespace MediaContainers
 
         <XmlArray("ratings")>
         <XmlArrayItem("rating")>
-        Public Property Ratings_Kodi() As RatingDetails()
+        Public Property Ratings_Jellyfin() As RatingDetails()
             Get
                 Return Ratings.Items.ToArray
             End Get
@@ -1717,12 +1736,12 @@ Namespace MediaContainers
         End Property
 
         <XmlAnyElement("set")>
-        Public Property Set_Kodi() As Object
+        Public Property Set_Jellyfin() As Object
             Get
-                Return Sets.Create_SetNode_Kodi()
+                Return Sets.Create_SetNode_Jellyfin()
             End Get
             Set(ByVal value As Object)
-                Sets.Read_SetNode_Kodi(value)
+                Sets.Read_SetNode_Jellyfin(value)
             End Set
         End Property
 
@@ -1754,7 +1773,9 @@ Namespace MediaContainers
             End Get
         End Property
 
-        <XmlElement("fileinfo")>
+        'Die Jellyfin-Sektion fileinfo/streamdetails wird nicht ins NFO geschrieben.
+        'Jellyfin liest die Streams direkt aus der Mediendatei.
+        <XmlIgnore()>
         Public Property FileInfo() As New Fileinfo
 
         <XmlIgnore()>
@@ -1791,6 +1812,80 @@ Namespace MediaContainers
             Get
                 Return Not String.IsNullOrEmpty(UserNote)
             End Get
+        End Property
+
+        '--- Felder fuer das Jellyfin-NFO -------------------------------------
+        'Diese Elemente werden von Jellyfin bzw. tinyMediaManager erwartet.
+        'Ember schreibt sie zusaetzlich zum Jellyfin-Format.
+
+        <XmlElement("watched")>
+        Public Property Watched() As Boolean
+            Get
+                Return _watched
+            End Get
+            Set(value As Boolean)
+                _watched = value
+            End Set
+        End Property
+
+        <XmlElement("original_filename")>
+        Public Property OriginalFilename() As String = String.Empty
+
+        <XmlIgnore()>
+        Public ReadOnly Property OriginalFilenameSpecified() As Boolean
+            Get
+                Return Not String.IsNullOrEmpty(OriginalFilename)
+            End Get
+        End Property
+
+        <XmlElement("english_title")>
+        Public Property EnglishTitle() As String = String.Empty
+
+        <XmlIgnore()>
+        Public ReadOnly Property EnglishTitleSpecified() As Boolean
+            Get
+                Return Not String.IsNullOrEmpty(EnglishTitle)
+            End Get
+        End Property
+
+        <XmlElement("languages")>
+        Public Property Languages() As String = String.Empty
+
+        <XmlIgnore()>
+        Public ReadOnly Property LanguagesSpecified() As Boolean
+            Get
+                Return Not String.IsNullOrEmpty(Languages)
+            End Get
+        End Property
+
+        <XmlElement("crew")>
+        Public Property Crew() As String = String.Empty
+
+        <XmlIgnore()>
+        Public ReadOnly Property CrewSpecified() As Boolean
+            Get
+                Return Not String.IsNullOrEmpty(Crew)
+            End Get
+        End Property
+
+        <XmlElement("producer")>
+        Public Property Producers() As String = String.Empty
+
+        <XmlIgnore()>
+        Public ReadOnly Property ProducersSpecified() As Boolean
+            Get
+                Return Not String.IsNullOrEmpty(Producers)
+            End Get
+        End Property
+
+        <XmlElement("tmm_locked")>
+        Public Property TmmLocked() As Boolean
+            Get
+                Return Locked
+            End Get
+            Set(value As Boolean)
+                Locked = value
+            End Set
         End Property
 
 #End Region 'Properties
@@ -1935,7 +2030,7 @@ Namespace MediaContainers
         End Property
 
         <XmlElement("uniqueid")>
-        Public Property UniqueIDs_Kodi() As Uniqueid()
+        Public Property UniqueIDs_Jellyfin() As Uniqueid()
             Get
                 Return UniqueIDs.Items.ToArray
             End Get
@@ -2081,7 +2176,7 @@ Namespace MediaContainers
             Next
         End Sub
 
-        Public Function Create_SetNode_Kodi() As XmlDocument
+        Public Function Create_SetNode_Jellyfin() As XmlDocument
             If Items.Count > 0 AndAlso Items.Item(0).TitleSpecified Then
                 Dim firstSet As MoviesetDetails = Items.Item(0)
 
@@ -2171,7 +2266,7 @@ Namespace MediaContainers
         ''' </set>       
         ''' </remarks>
         ''' <param name="xmlObject"></param>
-        Public Sub Read_SetNode_Kodi(ByVal xmlObject As Object)
+        Public Sub Read_SetNode_Jellyfin(ByVal xmlObject As Object)
             Try
                 If xmlObject IsNot Nothing AndAlso TryCast(xmlObject, XmlElement) IsNot Nothing Then
                     Dim nSetInfo As New MoviesetDetails
@@ -2659,7 +2754,7 @@ Namespace MediaContainers
         End Property
 
         <XmlElement("uniqueid")>
-        Public Property UniqueIDs_Kodi() As Uniqueid()
+        Public Property UniqueIDs_Jellyfin() As Uniqueid()
             Get
                 Return UniqueIDs.Items.ToArray
             End Get
@@ -2832,7 +2927,7 @@ Namespace MediaContainers
         End Property
 
         <XmlElement("uniqueid")>
-        Public Property UniqueIDs_Kodi() As Uniqueid()
+        Public Property UniqueIDs_Jellyfin() As Uniqueid()
             Get
                 Return UniqueIDs.Items.ToArray
             End Get
@@ -2891,7 +2986,7 @@ Namespace MediaContainers
             End Get
         End Property
 
-        <XmlElement("boxeeTvDb")>
+        <XmlIgnore()>
         Public Property BoxeeTVDb() As Integer = -1
 
         <XmlIgnore()>
@@ -2916,7 +3011,8 @@ Namespace MediaContainers
             Get
                 Dim nRating = Ratings.GetDefaultRating()
                 If nRating IsNot Nothing Then
-                    Return nRating.ValueNormalized.ToString
+                    'Jellyfin erwartet einen Punkt als Dezimaltrenner
+                    Return nRating.ValueNormalized.ToString(Globalization.CultureInfo.InvariantCulture)
                 Else
                     Return String.Empty
                 End If
@@ -2929,13 +3025,15 @@ Namespace MediaContainers
                                    dblRatings
                                    ) Then
                     _rating = dblRatings
-                    If Not _votes = 0 Then Ratings.Add(New RatingDetails With {
-                                                       .IsDefault = True,
-                                                       .Max = If(_rating <= 10, 10, 100),
-                                                       .Type = "default",
-                                                       .Value = _rating,
-                                                       .Votes = _votes
-                                                       })
+                    'Eine Bewertung ohne Votes geht sonst verloren - daher wird
+                    'mindestens eine Stimme eingetragen.
+                    Ratings.Add(New RatingDetails With {
+                                          .IsDefault = True,
+                                          .Max = If(_rating <= 10, 10, 100),
+                                          .Type = "default",
+                                          .Value = _rating,
+                                          .Votes = If(_votes = 0, 1, _votes)
+                                          })
                 Else
                     _rating = 0
                 End If
@@ -2997,7 +3095,7 @@ Namespace MediaContainers
 
         <XmlArray("ratings")>
         <XmlArrayItem("rating")>
-        Public Property Ratings_Kodi() As RatingDetails()
+        Public Property Ratings_Jellyfin() As RatingDetails()
             Get
                 Return Ratings.Items.ToArray
             End Get
@@ -4280,7 +4378,7 @@ Namespace MediaContainers
             MainDiscArts = FilterImages(MainDiscArts, cSettings)
             'Language preference settings aren't needed for sorting fanarts since here we only care about size of image (unlike poster/banner)
             ' mainfanarts = FilterImages(_mainfanarts, cSettings)
-            MainKeyarts = FilterImages(MainPosters, New FilterSettings With {
+            MainKeyarts = FilterImages(MainKeyarts, New FilterSettings With {
                                        .ForcedLanguage = String.Empty,
                                        .ForceLanguage = True,
                                        .GetBlankImages = True,
@@ -4451,7 +4549,8 @@ Namespace MediaContainers
             End If
 
             If cSettings.GetBlankImages OrElse Not cSettings.MediaLanguageOnly Then
-                FilteredList.AddRange(ImagesList.Where(Function(f) f.LongLang = Master.eLang.GetString(1168, "Blank")))
+                'In der Datenbank steht der feste Wert "Blank" - nicht der lokalisierte Text
+                FilteredList.AddRange(ImagesList.Where(Function(f) f.LongLang = "Blank"))
                 FilteredList.AddRange(ImagesList.Where(Function(f) f.ShortLang = String.Empty))
             End If
 
@@ -4459,11 +4558,13 @@ Namespace MediaContainers
                 FilteredList.AddRange(ImagesList.Where(Function(f) Not f.ShortLang = If(cSettings.ForceLanguage, cSettings.ForcedLanguage, String.Empty) AndAlso
                                                            Not f.ShortLang = cSettings.MediaLanguage AndAlso
                                                            Not f.ShortLang = "en" AndAlso
-                                                           Not f.LongLang = Master.eLang.GetString(1168, "Blank") AndAlso
+                                                           Not f.LongLang = "Blank" AndAlso
                                                            Not f.ShortLang = String.Empty))
             End If
 
-            Return FilteredList
+            'Ein Bild mit LongLang = "Blank" und ShortLang = "" kann zweimal
+            'aufgenommen worden sein - daher wird die Liste bereinigt.
+            Return FilteredList.Distinct().ToList()
         End Function
 
 #End Region 'Methods
@@ -4991,7 +5092,7 @@ Namespace MediaContainers
             End Get
         End Property
         ''' <summary>
-        ''' XBMC multiview layout type (http://wiki.xbmc.org/index.php?title=3D)
+        ''' Jellyfin multiview layout type
         ''' </summary>
         ''' <returns></returns>
         <XmlElement("stereomode")>

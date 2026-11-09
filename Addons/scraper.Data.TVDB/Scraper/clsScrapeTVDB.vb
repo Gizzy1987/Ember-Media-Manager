@@ -97,12 +97,18 @@ Namespace TVDBs
         End Sub
 
         Public Function GetSearchTVShowInfo(ByVal sShowName As String, ByRef oDBTV As Database.DBElement, ByVal iType As Enums.ScrapeType, ByRef ScrapeModifiers As Structures.ScrapeModifiers, ByRef FilteredOptions As Structures.ScrapeOptions) As MediaContainers.TVShow
+            Dim nYear As Integer = StringUtils.GetYearFromString(oDBTV.ShowPath, True)
             Dim r As SearchResults = SearchTVShowByName(sShowName)
+
+            If r Is Nothing Then Return Nothing
+
+            'only a result that really fits to the title and the year of the folder is taken over
+            Dim nBest As StringUtils.ScraperSearchCandidate = GetBestTVShowMatch(sShowName, nYear, r.Matches)
 
             Select Case iType
                 Case Enums.ScrapeType.AllAsk, Enums.ScrapeType.FilterAsk, Enums.ScrapeType.MarkedAsk, Enums.ScrapeType.MissingAsk, Enums.ScrapeType.NewAsk, Enums.ScrapeType.SelectedAsk, Enums.ScrapeType.SingleField
-                    If r.Matches.Count = 1 Then
-                        Return GetTVShowInfo(r.Matches.Item(0).UniqueIDs.TVDbId.ToString, ScrapeModifiers, FilteredOptions, False)
+                    If r.Matches.Count = 1 AndAlso nBest IsNot Nothing Then
+                        Return GetTVShowInfo(r.Matches.Item(nBest.Index).UniqueIDs.TVDbId.ToString, ScrapeModifiers, FilteredOptions, False)
                     Else
                         Using dlgSearch As New dlgTVDBSearchResults(_SpecialSettings, Me)
                             If dlgSearch.ShowDialog(r, sShowName, oDBTV.ShowPath) = DialogResult.OK Then
@@ -114,17 +120,38 @@ Namespace TVDBs
                     End If
 
                 Case Enums.ScrapeType.AllSkip, Enums.ScrapeType.FilterSkip, Enums.ScrapeType.MarkedSkip, Enums.ScrapeType.MissingSkip, Enums.ScrapeType.NewSkip, Enums.ScrapeType.SelectedSkip
-                    If r.Matches.Count = 1 Then
-                        Return GetTVShowInfo(r.Matches.Item(0).UniqueIDs.TVDbId.ToString, ScrapeModifiers, FilteredOptions, False)
+                    If r.Matches.Count = 1 AndAlso nBest IsNot Nothing Then
+                        Return GetTVShowInfo(r.Matches.Item(nBest.Index).UniqueIDs.TVDbId.ToString, ScrapeModifiers, FilteredOptions, False)
                     End If
 
                 Case Enums.ScrapeType.AllAuto, Enums.ScrapeType.FilterAuto, Enums.ScrapeType.MarkedAuto, Enums.ScrapeType.MissingAuto, Enums.ScrapeType.NewAuto, Enums.ScrapeType.SelectedAuto, Enums.ScrapeType.SingleScrape
-                    If r.Matches.Count > 0 Then
-                        Return GetTVShowInfo(r.Matches.Item(0).UniqueIDs.TVDbId.ToString, ScrapeModifiers, FilteredOptions, False)
+                    If nBest IsNot Nothing Then
+                        Return GetTVShowInfo(r.Matches.Item(nBest.Index).UniqueIDs.TVDbId.ToString, ScrapeModifiers, FilteredOptions, False)
+                    Else
+                        _Logger.Warn("[TVDB] [GetSearchTVShowInfo] No search result for '{0}' fits to the folder name - nothing was set", sShowName)
                     End If
             End Select
 
             Return Nothing
+        End Function
+
+        ''' <summary>
+        ''' Searches the search result that fits best to the title and the year of the tv show folder.
+        ''' </summary>
+        Private Function GetBestTVShowMatch(ByVal strTitle As String, ByVal nYear As Integer, ByVal Matches As List(Of MediaContainers.TVShow)) As StringUtils.ScraperSearchCandidate
+            Dim candidates As New List(Of StringUtils.ScraperSearchCandidate)
+            For nIndex As Integer = 0 To Matches.Count - 1
+                Dim nMatchYear As Integer = 0
+                If Not String.IsNullOrEmpty(Matches(nIndex).Premiered) Then
+                    If Not Integer.TryParse(Matches(nIndex).Premiered.Trim, nMatchYear) Then nMatchYear = 0
+                End If
+                candidates.Add(New StringUtils.ScraperSearchCandidate With {
+                                .Title = Matches(nIndex).Title,
+                                .OriginalTitle = Matches(nIndex).OriginalTitle,
+                                .Year = nMatchYear,
+                                .Index = nIndex})
+            Next
+            Return StringUtils.GetBestSearchMatch(strTitle, nYear, candidates)
         End Function
 
         Private Function SearchTVShowByName(ByVal sShow As String) As SearchResults
@@ -132,9 +159,16 @@ Namespace TVDBs
             Dim R As New SearchResults
             Dim Shows As List(Of TVDB.Model.Series)
 
-            Shows = _TVDBApi.GetSeriesByName(sShow, _SpecialSettings.Language, _TVDBMirror).Result
+            Try
+                'the .Result of a faulted task throws an AggregateException - therefore catch it here
+                Shows = _TVDBApi.GetSeriesByName(sShow, _SpecialSettings.Language, _TVDBMirror).Result
+            Catch ex As Exception
+                _Logger.Error(ex, New StackFrame().GetMethod().Name)
+                Return R
+            End Try
+
             If Shows Is Nothing Then
-                Return Nothing
+                Return R
             End If
 
             If Shows.Count > 0 Then
@@ -197,7 +231,10 @@ Namespace TVDBs
             If intTvdbId = -1 Then Return Nothing
 
             Dim APIResult As Task(Of TVDB.Model.SeriesDetails) = Task.Run(Function() GetFullSeriesById(intTvdbId))
-            If APIResult Is Nothing OrElse APIResult.Result Is Nothing Then
+            If APIResult Is Nothing OrElse APIResult.Exception IsNot Nothing Then
+                Return Nothing
+            End If
+            If APIResult.Result Is Nothing Then
                 Return Nothing
             End If
             Dim TVShowInfo = APIResult.Result
@@ -224,8 +261,10 @@ Namespace TVDBs
             If bwTVDB.CancellationPending Then Return Nothing
 
             'EpisodeGuideURL
-            If FilteredOptions.bMainEpisodeGuide Then
-                nTVShow.EpisodeGuide.URL = String.Concat(_TVDBMirror.Address, "/api/", _SpecialSettings.APIKey, "/series/", TVShowInfo.Series.Id, "/all/", TVShowInfo.Language, ".zip")
+            'The api key must not be part of the url - the url is stored in the database and written to the nfo files.
+            'The key is only added when the guide is actually downloaded.
+            If FilteredOptions.bMainEpisodeGuide AndAlso Not String.IsNullOrEmpty(_SpecialSettings.APIKey) Then
+                nTVShow.EpisodeGuide.URL = String.Concat(_TVDBMirror.Address, "/api/series/", TVShowInfo.Series.Id, "/all/", TVShowInfo.Language, ".zip")
             End If
 
             If bwTVDB.CancellationPending Then Return Nothing
@@ -359,7 +398,10 @@ Namespace TVDBs
         Public Function GetTVEpisodeInfo(ByVal tvdbID As Integer, ByVal SeasonNumber As Integer, ByVal EpisodeNumber As Integer, ByVal tEpisodeOrdering As Enums.EpisodeOrdering, ByRef FilteredOptions As Structures.ScrapeOptions) As MediaContainers.EpisodeDetails
             Try
                 Dim APIResult As Task(Of TVDB.Model.SeriesDetails) = Task.Run(Function() GetFullSeriesById(tvdbID))
-                If APIResult Is Nothing OrElse APIResult.Result Is Nothing Then
+                If APIResult Is Nothing OrElse APIResult.Exception IsNot Nothing Then
+                    Return Nothing
+                End If
+                If APIResult.Result Is Nothing Then
                     Return Nothing
                 End If
                 Dim TVShowInfo = APIResult.Result
@@ -392,7 +434,10 @@ Namespace TVDBs
             If Not Date.TryParse(aired, dAired) Then Return Nothing
 
             Dim APIResult As Task(Of TVDB.Model.SeriesDetails) = Task.Run(Function() GetFullSeriesById(tvdbId))
-            If APIResult Is Nothing OrElse APIResult.Result Is Nothing Then
+            If APIResult Is Nothing OrElse APIResult.Exception IsNot Nothing Then
+                Return Nothing
+            End If
+            If APIResult.Result Is Nothing Then
                 Return Nothing
             End If
             Dim TVShowInfo = APIResult.Result
@@ -444,7 +489,7 @@ Namespace TVDBs
                 nEpisode.DisplaySeason = EpisodeInfo.AirsBeforeSeason
             End If
 
-            'Season # AirsAfterSeason (DisplaySeason, DisplayEpisode; Special handling like in Kodi)
+            'Season # AirsAfterSeason (DisplaySeason, DisplayEpisode; Special handling like in Jellyfin)
             If Not CDbl(EpisodeInfo.AirsAfterSeason) = -1 Then
                 nEpisode.DisplaySeason = EpisodeInfo.AirsAfterSeason
                 nEpisode.DisplayEpisode = 4096

@@ -1,3 +1,22 @@
+Changelog 1.12 (2026-11-07)
+
+[Main]
+added: new splash screen for the Jellyfin edition
+changed: product name is now "Ember Media Manager for Jellyfin"
+changed: default user interface language is now German (de-DE), translation file de_DE.xml added
+changed: naming presets in the settings reduced to "Jellyfin" and "Expert"
+removed: Kodi interface module (generic.Interface.Kodi)
+removed: KodiAPI client library (XBMCRPC)
+removed: Kodi trailer URL format (plugin://plugin.video.youtube) - Jellyfin uses normal YouTube URLs
+
+[Jellyfin interface]
+added: management of Jellyfin hosts (name, base URL, API key)
+added: connection test and list of the libraries configured on the server
+added: library refresh via POST {base-url}/Library/Refresh (header X-Emby-Token)
+added: menu entry "Jellyfin" in the tools menu and in the tray menu ("Update Library", "Check Connection")
+changed: library refresh is triggered automatically after sync/remove events (debounced, one scan per batch)
+
+
 Changelog 1.4.7.2 (2015-06-11)
 
 [Main]

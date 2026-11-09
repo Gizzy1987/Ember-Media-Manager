@@ -669,7 +669,7 @@ Public Class EmberXMLScraperModule
         ConfigOptions.bTop250 = _setup.chkTop250.Checked
         ConfigOptions.bCountry = _setup.chkCountry.Checked
         ConfigOptions.bCert = _setup.chkCertification.Checked
-        ' Bellow Not used in XBMC XML Scrapers ?????
+        ' Bellow Not used in Jellyfin XML Scrapers ?????
         ConfigOptions.bTrailer = _setup.chkTrailer.Checked
         ConfigOptions.bMusicBy = _setup.chkMusicBy.Checked
         ConfigOptions.bOtherCrew = _setup.chkCrew.Checked

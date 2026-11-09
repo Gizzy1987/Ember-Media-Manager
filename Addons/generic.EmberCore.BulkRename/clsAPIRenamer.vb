@@ -35,6 +35,11 @@ Public Class FileFolderRenamer
     Private _episodes As New List(Of FileRename)
     Private _movies As New List(Of FileRename)
 
+    'Antworten auf die Frage nach Teilen oder Versionen fuer die aktuelle Sitzung.
+    'Schluessel = Element-ID (Serie oder Film), Wert = "Parts", "Versions" oder
+    'leer, wenn der Nutzer die Frage abgebrochen hat.
+    Private Shared _multiFileModes As New Dictionary(Of String, String)
+
 #End Region 'Fields
 
 #Region "Constructors"
@@ -135,6 +140,45 @@ Public Class FileFolderRenamer
         Return pattern
     End Function
 
+    ''' <summary>
+    ''' Normalizes an audio codec name as delivered by the file scanner
+    ''' (ffprobe/MediaInfo) into a conventional spelling for file and folder names.
+    ''' </summary>
+    ''' <remarks>The scanners return lower case names like "ac3", "eac3" or "truehd",
+    ''' which look wrong in a file name. Unknown codecs are returned unchanged.</remarks>
+    Public Shared Function NormalizeAudioCodec(ByVal codec As String) As String
+        If String.IsNullOrEmpty(codec) Then Return String.Empty
+
+        Select Case codec.Trim.ToLowerInvariant()
+            Case "ac3", "ac-3", "dd", "dolby digital"
+                Return "AC3"
+            Case "eac3", "e-ac-3", "ddplus", "dd+", "dolby digital plus", "eac3-joc"
+                Return "E-AC3"
+            Case "dts"
+                Return "DTS"
+            Case "dts-hd", "dtshd", "dts-hd ma", "dts-hd hra"
+                Return "DTS-HD"
+            Case "truehd", "true hd"
+                Return "TrueHD"
+            Case "truehd+atmos", "atmos"
+                Return "TrueHD+Atmos"
+            Case "aac"
+                Return "AAC"
+            Case "flac"
+                Return "FLAC"
+            Case "opus"
+                Return "Opus"
+            Case "vorbis"
+                Return "Vorbis"
+            Case "mp3", "mpeg audio"
+                Return "MP3"
+            Case "pcm", "lpcm", "pcm_s16le", "pcm_s24le", "pcm_s32le"
+                Return "PCM"
+            Case Else
+                Return codec.Trim
+        End Select
+    End Function
+
     Public Sub DoRename_Movies(Optional ByVal sfunction As ShowProgress = Nothing)
         Dim _movieDB As Database.DBElement = Nothing
         Dim iProg As Integer = 0
@@ -173,8 +217,9 @@ Public Class FileFolderRenamer
     Private Shared Sub DoRenameSingle_Movie(ByVal _frename As FileRename, ByRef _movie As Database.DBElement, ByVal BatchMode As Boolean, ByVal ShowError As Boolean, ByVal toDB As Boolean, Optional ByVal sfunction As ShowProgress = Nothing, Optional ByVal iProg As Integer = 0)
         logger.Trace(String.Format("[{0}] [{1}] [Start]", Reflection.MethodBase.GetCurrentMethod.ReflectedType, Reflection.MethodBase.GetCurrentMethod.Name))
         Try
-            If Not _movie.IsLock AndAlso Not _frename.FileExist AndAlso Not _frename.DirExist Then
+            If Not _movie.IsLock AndAlso Not _frename.FileExist Then
                 Dim getError As Boolean = False
+                Dim merged As Boolean = False
                 Dim srcDir As String = Path.Combine(_frename.BasePath, _frename.Path)
                 Dim destDir As String = Path.Combine(_frename.BasePath, _frename.NewPath)
                 Dim srcFilenamePath As String = Path.Combine(_frename.BasePath, _frename.Path, _frename.OldFileName)
@@ -187,7 +232,12 @@ Public Class FileFolderRenamer
                             If Not sfunction(_frename.NewPath, iProg) Then Return
                         End If
 
-                        If Not _movie.IsSingle Then
+                        If _frename.DirExist Then
+                            'Der Zielordner existiert bereits und ist nicht leer. Statt den Vorgang
+                            'abzubrechen wird der Inhalt des Quellordners dorthin verschoben.
+                            MergeSingleMovie(srcDir, destDir, _frename.OldFileName, _frename.NewFileName, _frename.NewSidecarName, _movie)
+                            merged = True
+                        ElseIf Not _movie.IsSingle Then
                             Directory.CreateDirectory(destDir)
                         Else
                             If srcDir.ToLower = destDir.ToLower Then
@@ -210,8 +260,10 @@ Public Class FileFolderRenamer
                 End If
 
                 'Rename Files
-                If Not getError AndAlso Not _frename.IsVideoTS AndAlso Not _frename.IsBDMV Then
-                    If (Not _frename.NewFileName = _frename.OldFileName) OrElse (_frename.Path = String.Empty AndAlso Not _frename.NewPath = String.Empty) OrElse Not _movie.IsSingle Then
+                If Not getError AndAlso Not merged AndAlso Not _frename.IsVideoTS AndAlso Not _frename.IsBDMV Then
+                    If (Not _frename.NewFileName = _frename.OldFileName) OrElse
+                       (Not String.IsNullOrEmpty(_frename.NewSidecarName) AndAlso Not _frename.NewSidecarName = _frename.OldFileName) OrElse
+                       (_frename.Path = String.Empty AndAlso Not _frename.NewPath = String.Empty) OrElse Not _movie.IsSingle Then
                         Dim di As DirectoryInfo
 
                         If _frename.IsSingle Then
@@ -235,7 +287,8 @@ Public Class FileFolderRenamer
                         If lFi.Count > 0 Then
                             For Each lFile As FileInfo In lFi.OrderBy(Function(s) s.Name)
                                 Dim srcFile As String = lFile.FullName
-                                Dim dstFile As String = Path.Combine(Directory.GetParent(srcFile).FullName, lFile.Name.Replace(_frename.OldFileName.Trim, _frename.NewFileName.Trim))
+                                Dim newBase As String = GetRenameBase(_frename, lFile)
+                                Dim dstFile As String = Path.Combine(Directory.GetParent(srcFile).FullName, lFile.Name.Replace(_frename.OldFileName.Trim, newBase.Trim))
                                 If Not srcFile = dstFile Then
                                     Try
                                         If sfunction IsNot Nothing Then
@@ -266,7 +319,7 @@ Public Class FileFolderRenamer
                 End If
 
                 If Not getError Then
-                    UpdatePaths_Movie(_movie, srcDir, destDir, _frename.OldFileName, _frename.NewFileName)
+                    UpdatePaths_Movie(_movie, srcDir, destDir, _frename.OldFileName, _frename.NewFileName, _frename.NewSidecarName)
 
                     If toDB Then
                         Master.DB.Save_Movie(_movie, BatchMode, False, False, True, False)
@@ -304,13 +357,169 @@ Public Class FileFolderRenamer
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Removes the version specific tokens (resolution and audio codec) from a pattern.
+    ''' </summary>
+    ''' <remarks>Sidecar files like poster and fanart belong to the movie and not to a
+    ''' specific video file, so they must not carry the resolution and codec suffix.</remarks>
+    Private Shared Function StripTechnicalTokens(ByVal pattern As String) As String
+        If String.IsNullOrEmpty(pattern) Then Return pattern
+
+        Dim result As String = pattern
+        Dim searchFrom As Integer = 0
+
+        'Optionale Bloecke, die nur technische Tokens enthalten, komplett entfernen -
+        'sonst blieben die leeren Klammern im Dateinamen stehen.
+        While True
+            Dim startIndex As Integer = result.IndexOf("{", searchFrom)
+            If startIndex = -1 Then Exit While
+            Dim endIndex As Integer = result.IndexOf("}", startIndex)
+            If endIndex = -1 Then Exit While
+
+            Dim inner As String = result.Substring(startIndex + 1, endIndex - startIndex - 1)
+            Dim strippedInner As String = RemoveTechnicalTokens(inner)
+
+            If strippedInner.Trim = String.Empty Then
+                Dim removeFrom As Integer = startIndex
+                If removeFrom > 0 AndAlso result.Substring(removeFrom - 1, 1) = " " Then removeFrom -= 1
+                result = result.Remove(removeFrom, endIndex - removeFrom + 1)
+                searchFrom = removeFrom
+            Else
+                result = result.Remove(startIndex, endIndex - startIndex + 1).Insert(startIndex, strippedInner)
+                searchFrom = startIndex + strippedInner.Length
+            End If
+        End While
+
+        Return RemoveTechnicalTokens(result)
+    End Function
+
+    ''' <summary>
+    ''' Removes the resolution and audio codec tokens including a preceding space.
+    ''' </summary>
+    Private Shared Function RemoveTechnicalTokens(ByVal text As String) As String
+        If String.IsNullOrEmpty(text) Then Return text
+        Dim result As String = text
+        For Each token In New String() {"$-R", "$+R", "$^R", "$R", "$-J", "$+J", "$^J", "$J"}
+            Dim idx As Integer = result.IndexOf(token)
+            While idx > -1
+                Dim removeLen As Integer = token.Length
+                If idx > 0 AndAlso result.Substring(idx - 1, 1) = " " Then removeLen += 1
+                If idx + removeLen > result.Length Then removeLen = result.Length - idx
+                result = result.Remove(idx, removeLen)
+                idx = result.IndexOf(token)
+            End While
+        Next
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' Returns the base name under which a sidecar file is renamed.
+    ''' </summary>
+    ''' <remarks>The movie file itself and its NFO carry the full file pattern including
+    ''' resolution and audio codec. All other files (poster, fanart, ...) use the same
+    ''' pattern without these version specific tokens.</remarks>
+    Private Shared Function GetRenameBase(ByVal _frename As FileRename, ByVal lFile As FileInfo) As String
+        If String.IsNullOrEmpty(_frename.NewSidecarName) Then Return _frename.NewFileName
+        If Path.GetFileNameWithoutExtension(lFile.Name).Equals(_frename.OldFileName.Trim, StringComparison.OrdinalIgnoreCase) Then
+            Return _frename.NewFileName
+        End If
+        Return _frename.NewSidecarName
+    End Function
+
+    ''' <summary>
+    ''' Moves the content of the movie folder into the already existing target folder
+    ''' and gives the movie files their new name on the way.
+    ''' </summary>
+    ''' <remarks>Used when the target folder exists already but the target file does not.
+    ''' Instead of aborting the whole rename the movie is moved into the target folder.
+    ''' Files with the same name are replaced by the current ones, because the source
+    ''' folder holds the live version of the movie. Afterwards the emptied source folder
+    ''' is removed.</remarks>
+    Private Shared Sub MergeSingleMovie(ByVal srcDir As String, ByVal destDir As String,
+                                        ByVal oldFileName As String, ByVal newFileName As String,
+                                        ByVal sidecarName As String,
+                                        ByVal movie As Database.DBElement)
+        Dim diSrc As New DirectoryInfo(srcDir)
+
+        ' 1. Files of the source folder get their new name
+        For Each lFile As FileInfo In diSrc.GetFiles()
+            If lFile.Name.StartsWith(oldFileName, StringComparison.OrdinalIgnoreCase) Then
+                Dim baseName As String = If(Path.GetFileNameWithoutExtension(lFile.Name).Equals(oldFileName.Trim, StringComparison.OrdinalIgnoreCase),
+                                            newFileName.Trim,
+                                            If(String.IsNullOrEmpty(sidecarName), newFileName.Trim, sidecarName.Trim))
+                Dim dstFile As String = Path.Combine(srcDir, lFile.Name.Replace(oldFileName.Trim, baseName))
+                If Not lFile.FullName.ToLower = dstFile.ToLower Then
+                    If File.Exists(dstFile) Then File.Delete(dstFile)
+                    File.Move(lFile.FullName, dstFile)
+                End If
+            End If
+        Next
+
+        ' 2. Subtitles as well
+        If movie IsNot Nothing AndAlso movie.SubtitlesSpecified Then
+            For Each subtitle In movie.Subtitles.Where(Function(f) f.PathSpecified)
+                If subtitle.Path.StartsWith(srcDir, StringComparison.OrdinalIgnoreCase) Then
+                    Dim dstSub As String = Path.Combine(srcDir, Path.GetFileName(subtitle.Path).Replace(oldFileName.Trim, newFileName.Trim))
+                    If Not subtitle.Path.ToLower = dstSub.ToLower AndAlso File.Exists(subtitle.Path) Then
+                        If File.Exists(dstSub) Then File.Delete(dstSub)
+                        File.Move(subtitle.Path, dstSub)
+                    End If
+                End If
+            Next
+        End If
+
+        ' 3. Move the content into the target folder, existing files are replaced
+        For Each lFile As FileInfo In diSrc.GetFiles()
+            Dim target As String = Path.Combine(destDir, lFile.Name)
+            If File.Exists(target) Then File.Delete(target)
+            File.Move(lFile.FullName, target)
+        Next
+        For Each lDir As DirectoryInfo In diSrc.GetDirectories()
+            Dim target As String = Path.Combine(destDir, lDir.Name)
+            If Directory.Exists(target) Then
+                MergeFolder(lDir.FullName, target)
+            Else
+                Directory.Move(lDir.FullName, target)
+            End If
+        Next
+
+        ' 4. Remove the emptied source folder
+        Directory.Delete(srcDir, True)
+    End Sub
+
+    ''' <summary>
+    ''' Merges the content of <paramref name="srcDir"/> into the existing folder
+    ''' <paramref name="destDir"/>, replacing files with the same name.
+    ''' </summary>
+    Private Shared Sub MergeFolder(ByVal srcDir As String, ByVal destDir As String)
+        For Each lFile As FileInfo In New DirectoryInfo(srcDir).GetFiles()
+            Dim target As String = Path.Combine(destDir, lFile.Name)
+            If File.Exists(target) Then File.Delete(target)
+            File.Move(lFile.FullName, target)
+        Next
+        For Each lDir As DirectoryInfo In New DirectoryInfo(srcDir).GetDirectories()
+            Dim target As String = Path.Combine(destDir, lDir.Name)
+            If Directory.Exists(target) Then
+                MergeFolder(lDir.FullName, target)
+            Else
+                Directory.Move(lDir.FullName, target)
+            End If
+        Next
+        Directory.Delete(srcDir, True)
+    End Sub
+
     Private Shared Sub DoRenameSingle_TVEpisode(ByVal _frename As FileRename, ByRef _tv As Database.DBElement, ByVal BatchMode As Boolean, ByVal ShowError As Boolean, ByVal toDB As Boolean, Optional ByVal sfunction As ShowProgress = Nothing, Optional ByVal iProg As Integer = 0)
         Try
-            If Not _tv.IsLock AndAlso Not _frename.FileExist Then
+            Dim srcFilenamePath As String = Path.Combine(_frename.BasePath, _frename.Path, _frename.OldFileName)
+            'Ist die Quelldatei ueberhaupt noch da? Ein verwaister Datenbankeintrag
+            '(die Datei wurde zwischenzeitlich umbenannt oder geloescht) ist kein
+            'Fehler - es gibt nichts umzubenennen.
+            Dim srcExists As Boolean = File.Exists(srcFilenamePath)
+
+            If Not _tv.IsLock AndAlso (Not _frename.FileExist OrElse Not srcExists) Then
                 Dim getError As Boolean = False
                 Dim srcDir As String = Path.Combine(_frename.BasePath, _frename.Path)
                 Dim destDir As String = Path.Combine(_frename.BasePath, _frename.NewPath)
-                Dim srcFilenamePath As String = Path.Combine(_frename.BasePath, _frename.Path, _frename.OldFileName)
                 Dim dstFilenamePath As String = Path.Combine(_frename.BasePath, _frename.NewPath, _frename.NewFileName)
 
                 'Rename/Create Directory
@@ -414,7 +623,7 @@ Public Class FileFolderRenamer
                         currPath = currPath.Parent
                     End While
                 End If
-            Else
+            ElseIf srcExists Then
                 Dim strErrorMessage As String = String.Format("{0}{2}{2}{1}{2}{2}{3}: {4}{2}{5}: {6}",
                                                               Master.eLang.GetString(171, "Unable to Rename File"),
                                                               _frename.OldFullFileName,
@@ -428,6 +637,10 @@ Public Class FileFolderRenamer
                     MessageBox.Show(strErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
                 End If
                 logger.Error(strErrorMessage.Replace(Environment.NewLine, "; ").Replace("; ;", ";"))
+            Else
+                'Die Quelldatei existiert nicht mehr - der Eintrag ist verwais und
+                'wird von der Datenbankbereinigung entfernt. Kein Fehler.
+                logger.Info("Source file no longer exists - nothing to rename: {0}", _frename.OldFullFileName)
             End If
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)
@@ -632,7 +845,7 @@ Public Class FileFolderRenamer
 
                 'Audio Codec
                 If tAud.CodecSpecified Then
-                    MovieFile.AudioCodec = tAud.Codec
+                    MovieFile.AudioCodec = NormalizeAudioCodec(tAud.Codec)
                 End If
             End If
 
@@ -856,7 +1069,7 @@ Public Class FileFolderRenamer
 
                 'AudioCodec
                 If tAud.CodecSpecified Then
-                    EpisodeFile.AudioCodec = tAud.Codec
+                    EpisodeFile.AudioCodec = NormalizeAudioCodec(tAud.Codec)
                 End If
             End If
 
@@ -1079,6 +1292,10 @@ Public Class FileFolderRenamer
 
     Public Shared Sub Process_Movie(ByRef MovieFile As FileRename, ByVal folderPattern As String, ByVal filePattern As String)
         Try
+            'Mehrfach-Datei-Situation: der Unterepisoden-Anteil darf nicht in den
+            'Dateinamen, sonst entsteht "S01E01.2" zuzueglich Suffix.
+            If Not String.IsNullOrEmpty(MovieFile.MultiFileMode) Then SuppressSubEpisode(MovieFile)
+
             If HaveBase(folderPattern) Then
                 MovieFile.NewPath = ProccessPattern(MovieFile, If(MovieFile.IsSingle, folderPattern, "$D"), True).Trim
             Else
@@ -1097,15 +1314,21 @@ Public Class FileFolderRenamer
                 MovieFile.NewFileName = MovieFile.OldFileName
             End If
 
+            'Begleitdateien (Poster, Fanart, ...) tragen keinen versionsspezifischen
+            'Zusatz. Aufloesung ($R) und Audio-Codec ($J) stehen nur in der Videodatei
+            'und ihrer NFO.
+            Dim strippedPattern As String = StripTechnicalTokens(filePattern)
+            MovieFile.NewSidecarName = If(strippedPattern <> filePattern,
+                                         ProccessPattern(MovieFile, strippedPattern, False).Trim,
+                                         MovieFile.NewFileName)
+
+            'Teile oder Versionen: Suffix an Datei- und Begleitdateinamen anhaengen
+            ApplyMultiFileSuffix(MovieFile)
+
             'removes all leading DirectorySeparatorChar (otherwise, Path.Combine later does not work)
             MovieFile.NewPath = StringUtils.CleanPath(MovieFile.NewPath)
 
-            Dim newFullFileName As String = Path.Combine(MovieFile.BasePath, Path.Combine(MovieFile.NewPath, String.Concat(MovieFile.NewFileName, MovieFile.Extension)))
-            Dim newFullDirPath As String = Path.Combine(MovieFile.BasePath, MovieFile.NewPath)
-            Dim newDirInfo As New DirectoryInfo(newFullDirPath)
-            MovieFile.FileExist = File.Exists(newFullFileName) AndAlso Not (newFullFileName.ToLower = MovieFile.OldFullFileName.ToLower)
-            MovieFile.DirExist = MovieFile.IsSingle AndAlso newDirInfo.Exists AndAlso Not If(newFullDirPath.ToLower = MovieFile.OldFullPath.ToLower, True, newDirInfo.GetFileSystemInfos.Count = 0)
-            MovieFile.DoRename = Not MovieFile.NewPath = MovieFile.Path OrElse Not MovieFile.NewFileName = MovieFile.OldFileName
+            UpdateMovieRenameState(MovieFile)
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)
             MovieFile.DoRename = False
@@ -1114,7 +1337,19 @@ Public Class FileFolderRenamer
 
     Public Shared Sub Process_TVEpisode(ByRef EpisodeFile As FileRename, ByVal folderPatternSeasons As String, ByVal filePatternEpisodes As String)
         Try
+            'Mehrfach-Datei-Situation: der Unterepisoden-Anteil darf nicht in den
+            'Dateinamen, sonst entsteht "S01E01.2" zuzueglich Suffix.
+            If Not String.IsNullOrEmpty(EpisodeFile.MultiFileMode) Then SuppressSubEpisode(EpisodeFile)
+
             Dim pSeason As String = ProccessPattern(EpisodeFile, folderPatternSeasons, True).Trim
+
+            'Staffel 0 wird wie bei tinyMediaManager und Jellyfin im Ordner
+            '"Specials" abgelegt und nicht als "Season 00".
+            If EpisodeFile.SeasonsEpisodes.Any(Function(s) s.Season = 0) Then
+                Dim strSpecials As String = AdvancedSettings.GetSetting("SpecialsFolder", "Specials", MULTIFILE_SECTION, Enums.ContentType.TVSeason)
+                If Not String.IsNullOrEmpty(strSpecials) Then pSeason = strSpecials
+            End If
+
             EpisodeFile.NewPath = Path.Combine(EpisodeFile.ShowPath, pSeason)
 
             If Not EpisodeFile.IsVideoTS AndAlso Not EpisodeFile.IsBDMV Then
@@ -1128,6 +1363,9 @@ Public Class FileFolderRenamer
             Else
                 EpisodeFile.NewFileName = EpisodeFile.OldFileName
             End If
+
+            'Teile oder Versionen: Suffix an den Dateinamen anhaengen
+            ApplyMultiFileSuffix(EpisodeFile)
 
             Dim newFullFileName As String = Path.Combine(EpisodeFile.BasePath, Path.Combine(EpisodeFile.NewPath, String.Concat(EpisodeFile.NewFileName, EpisodeFile.Extension)))
             EpisodeFile.FileExist = File.Exists(newFullFileName) AndAlso Not (newFullFileName.ToLower = EpisodeFile.OldFullFileName.ToLower)
@@ -1164,6 +1402,9 @@ Public Class FileFolderRenamer
             For Each f As FileRename In _movies
                 Process_Movie(f, If(f.IsSingle, folderPattern, folderPatternIsNotSingle), filePattern)
             Next
+
+            'Mehrfach-Dateien: mehrere Filme bekommen denselben Zielnamen
+            HandleMultiFile_Movies()
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)
         End Try
@@ -1191,6 +1432,7 @@ Public Class FileFolderRenamer
                 Dim strBase As String
                 Dim strNoFlags As String
                 Dim strJoin As String
+                Dim dRating As Double
                 While Not nextC = -1
                     If nextC > nextIB AndAlso nextC < nextEB AndAlso Not nextC = -1 AndAlso Not nextIB = -1 AndAlso Not nextEB = -1 Then
                         strCond = pattern.Substring(nextIB, nextEB - nextIB + 1)
@@ -1218,7 +1460,8 @@ Public Class FileFolderRenamer
                         strCond = ApplyPattern(strCond, "N", f.Collection)
                         '                                O   OriginalTitle
                         '                                OO  OriginalTitle if different from the title
-                        strCond = ApplyPattern(strCond, "P", If(Not String.IsNullOrEmpty(f.Rating), String.Format("{0:0.0}", Double.Parse(f.Rating, Globalization.CultureInfo.InvariantCulture)), String.Empty))
+                        dRating = 0
+                        strCond = ApplyPattern(strCond, "P", If(Not String.IsNullOrEmpty(f.Rating) AndAlso Double.TryParse(f.Rating, Globalization.NumberStyles.Any, Globalization.CultureInfo.InvariantCulture, dRating), String.Format("{0:0.0}", dRating), String.Empty))
                         '                                Q   Episode
                         strCond = ApplyPattern(strCond, "R", f.Resolution)
                         strCond = ApplyPattern(strCond, "S", f.VideoSource)
@@ -1312,7 +1555,8 @@ Public Class FileFolderRenamer
                 pattern = ApplyPattern(pattern, "N", f.Collection)
                 '                                O   OriginalTitle
                 '                                OO  OriginalTitle if different from the title
-                pattern = ApplyPattern(pattern, "P", If(Not String.IsNullOrEmpty(f.Rating), String.Format("{0:0.0}", Double.Parse(f.Rating, Globalization.CultureInfo.InvariantCulture)), String.Empty))
+                dRating = 0
+                pattern = ApplyPattern(pattern, "P", If(Not String.IsNullOrEmpty(f.Rating) AndAlso Double.TryParse(f.Rating, Globalization.NumberStyles.Any, Globalization.CultureInfo.InvariantCulture, dRating), String.Format("{0:0.0}", dRating), String.Empty))
                 '                                Q   Episode
                 pattern = ApplyPattern(pattern, "R", f.Resolution)
                 pattern = ApplyPattern(pattern, "S", f.VideoSource)
@@ -1347,22 +1591,33 @@ Public Class FileFolderRenamer
                             nextEB = strBase.IndexOf("?", nextIB + 1)
                             If nextEB > -1 Then
                                 sPattern = strBase.Substring(2, nextIB - 2)
-                                If Not String.IsNullOrEmpty(sPattern) AndAlso Integer.TryParse(sPattern.Substring(0, 1), 0) Then
-                                    sPadding = CInt(sPattern.Substring(0, 1))
-                                    sPattern = sPattern.Substring(1)
-                                    If Not sPadding > 0 Then
-                                        sPadding = 1
-                                    End If
-                                End If
                                 ePattern = strBase.Substring(nextIB + 1, nextEB - nextIB - 1)
-                                If Not String.IsNullOrEmpty(ePattern) AndAlso Integer.TryParse(ePattern.Substring(0, 1), 0) Then
-                                    ePadding = CInt(ePattern.Substring(0, 1))
-                                    ePattern = ePattern.Substring(1)
-                                    If Not ePadding > 0 Then
-                                        ePadding = 1
-                                    End If
-                                End If
                                 fPattern = strBase.Substring(0, nextEB + 1)
+                            Else
+                                'Nur eine Trennstelle: der Token endet nach der Staffel.
+                                sPattern = strBase.Substring(2, nextIB - 2)
+                                ePattern = "2E"
+                                fPattern = strBase.Substring(0, nextIB + 1)
+                            End If
+                        Else
+                            'Kein "?" im Token (z.B. "$W2_S"): die Folge wird im
+                            'Standardformat "E01" angehaengt.
+                            sPattern = If(strBase.Length > 2, strBase.Substring(2), String.Empty)
+                            ePattern = "2E"
+                            fPattern = strBase
+                        End If
+                        If Not String.IsNullOrEmpty(sPattern) AndAlso Integer.TryParse(sPattern.Substring(0, 1), 0) Then
+                            sPadding = CInt(sPattern.Substring(0, 1))
+                            sPattern = sPattern.Substring(1)
+                            If Not sPadding > 0 Then
+                                sPadding = 1
+                            End If
+                        End If
+                        If Not String.IsNullOrEmpty(ePattern) AndAlso Integer.TryParse(ePattern.Substring(0, 1), 0) Then
+                            ePadding = CInt(ePattern.Substring(0, 1))
+                            ePattern = ePattern.Substring(1)
+                            If Not ePadding > 0 Then
+                                ePadding = 1
                             End If
                         End If
 
@@ -1421,14 +1676,20 @@ Public Class FileFolderRenamer
                         nextIB = strBase.IndexOf("?")
                         If nextIB > -1 Then
                             sPattern = strBase.Substring(2, nextIB - 2)
-                            If Not String.IsNullOrEmpty(sPattern) AndAlso Integer.TryParse(sPattern.Substring(0, 1), 0) Then
-                                sPadding = CInt(sPattern.Substring(0, 1))
-                                sPattern = sPattern.Substring(1)
-                                If Not sPadding > 0 Then
-                                    sPadding = 1
-                                End If
-                            End If
                             fPattern = strBase.Substring(0, nextIB + 1)
+                        Else
+                            'Kein "?" im Token (z.B. "Season $K2"): der Token wird komplett
+                            'ersetzt. Ohne diesen Zweig bliebe das Suchmuster leer und
+                            'String.Replace wuerde mit einer Ausnahme abbrechen.
+                            sPattern = If(strBase.Length > 2, strBase.Substring(2), String.Empty)
+                            fPattern = strBase
+                        End If
+                        If Not String.IsNullOrEmpty(sPattern) AndAlso Integer.TryParse(sPattern.Substring(0, 1), 0) Then
+                            sPadding = CInt(sPattern.Substring(0, 1))
+                            sPattern = sPattern.Substring(1)
+                            If Not sPadding > 0 Then
+                                sPadding = 1
+                            End If
                         End If
 
                         If sPattern.StartsWith(".") OrElse sPattern.StartsWith("_") OrElse sPattern.StartsWith("x") Then
@@ -1468,14 +1729,20 @@ Public Class FileFolderRenamer
                         nextIB = strBase.IndexOf("?")
                         If nextIB > -1 Then
                             ePattern = strBase.Substring(2, nextIB - 2)
-                            If Not String.IsNullOrEmpty(ePattern) AndAlso Integer.TryParse(ePattern.Substring(0, 1), 0) Then
-                                ePadding = CInt(ePattern.Substring(0, 1))
-                                ePattern = ePattern.Substring(1)
-                                If Not ePadding > 0 Then
-                                    ePadding = 1
-                                End If
-                            End If
                             fPattern = strBase.Substring(0, nextIB + 1)
+                        Else
+                            'Kein "?" im Token: der Token wird komplett ersetzt, sonst
+                            'wuerde String.Replace mit einem leeren Suchmuster eine
+                            'Ausnahme ausloesen.
+                            ePattern = If(strBase.Length > 2, strBase.Substring(2), String.Empty)
+                            fPattern = strBase
+                        End If
+                        If Not String.IsNullOrEmpty(ePattern) AndAlso Integer.TryParse(ePattern.Substring(0, 1), 0) Then
+                            ePadding = CInt(ePattern.Substring(0, 1))
+                            ePattern = ePattern.Substring(1)
+                            If Not ePadding > 0 Then
+                                ePadding = 1
+                            End If
                         End If
 
                         If ePattern.StartsWith(".") OrElse ePattern.StartsWith("_") OrElse ePattern.StartsWith("x") Then
@@ -1619,6 +1886,17 @@ Public Class FileFolderRenamer
         MovieFile = GetInfo_Movie(_tmpMovie)
         Process_Movie(MovieFile, folderPattern, filePattern)
 
+        'Mehrfach-Datei-Situation: die berechnete Zieldatei existiert bereits
+        If MovieFile.FileExist Then
+            Dim mode As String = GetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_MOVIE, MovieFile.ID), MovieFile.Title, Enums.ContentType.Movie)
+            If Not String.IsNullOrEmpty(mode) Then
+                MovieFile.MultiFileMode = mode
+                MovieFile.PartNumber = GetMultiFilePartNumber(MovieFile, mode)
+                ApplyMultiFileSuffix(MovieFile)
+                UpdateMovieRenameState(MovieFile)
+            End If
+        End If
+
         If MovieFile.DoRename Then
             DoRenameSingle_Movie(MovieFile, _tmpMovie, BatchMode, ShowError, toDB)
         Else
@@ -1651,9 +1929,32 @@ Public Class FileFolderRenamer
 
         'rename episodes (does not change the tvshow folder)
         If Not String.IsNullOrEmpty(folderPatternSeasons) AndAlso Not String.IsNullOrEmpty(filePatternEpisodes) Then
+            'Folgen und ihre Dateien sammeln und nach Staffel und Folge gruppieren
+            Dim episodeInfos As New List(Of EpisodeFileInfo)
+            Dim episodeGroups As New Dictionary(Of String, List(Of EpisodeFileInfo))
+
             For Each tEpisode As Database.DBElement In _tmpShow.Episodes.Where(Function(f) f.IsOnline)
-                Dim EpisodeFile As New FileRename
-                EpisodeFile = GetInfo_TVEpisode(tEpisode, _tmpShow.Episodes)
+                Dim episodeInfo As New EpisodeFileInfo With {
+                    .Element = tEpisode,
+                    .File = GetInfo_TVEpisode(tEpisode, _tmpShow.Episodes),
+                    .GroupKey = String.Concat(tEpisode.TVEpisode.Season, "_", tEpisode.TVEpisode.Episode)
+                }
+                episodeInfos.Add(episodeInfo)
+                If Not episodeGroups.ContainsKey(episodeInfo.GroupKey) Then episodeGroups.Add(episodeInfo.GroupKey, New List(Of EpisodeFileInfo))
+                episodeGroups(episodeInfo.GroupKey).Add(episodeInfo)
+            Next
+
+            'Frage einmal pro Serie stellen, wenn mehrere Dateien zu derselben Folge gehoeren
+            Dim multiFileMode As String = GetTVShowMultiFileMode(_tmpShow, episodeGroups)
+
+            For Each episodeInfo As EpisodeFileInfo In episodeInfos
+                Dim EpisodeFile As FileRename = episodeInfo.File
+                Dim tEpisode As Database.DBElement = episodeInfo.Element
+
+                If Not String.IsNullOrEmpty(multiFileMode) Then
+                    SetMultiFileInfo_Episode(episodeInfo, episodeGroups, multiFileMode)
+                End If
+
                 Process_TVEpisode(EpisodeFile, folderPatternSeasons, filePatternEpisodes)
                 If EpisodeFile.DoRename Then
                     DoRenameSingle_TVEpisode(EpisodeFile, tEpisode, BatchMode, ShowError, False)
@@ -1721,28 +2022,29 @@ Public Class FileFolderRenamer
         Next
     End Sub
 
-    Private Shared Sub UpdatePaths_Movie(ByRef _DBM As Database.DBElement, ByVal oldPath As String, ByVal newPath As String, ByVal oldFile As String, ByVal newFile As String)
+    Private Shared Sub UpdatePaths_Movie(ByRef _DBM As Database.DBElement, ByVal oldPath As String, ByVal newPath As String, ByVal oldFile As String, ByVal newFile As String, Optional ByVal sidecarFile As String = "")
+        If String.IsNullOrEmpty(sidecarFile) Then sidecarFile = newFile
         If _DBM.ExtrafanartsPathSpecified Then _DBM.ExtrafanartsPath = Path.Combine(Directory.GetParent(_DBM.ExtrafanartsPath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ExtrafanartsPath).Replace(oldFile, newFile))
         If _DBM.ExtrathumbsPathSpecified Then _DBM.ExtrathumbsPath = Path.Combine(Directory.GetParent(_DBM.ExtrathumbsPath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ExtrathumbsPath).Replace(oldFile, newFile))
         If _DBM.FilenameSpecified Then _DBM.Filename = Path.Combine(Directory.GetParent(_DBM.Filename).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.Filename).Replace(oldFile, newFile))
-        If _DBM.ImagesContainer.Banner.LocalFilePathSpecified Then _DBM.ImagesContainer.Banner.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Banner.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Banner.LocalFilePath).Replace(oldFile, newFile))
-        If _DBM.ImagesContainer.ClearArt.LocalFilePathSpecified Then _DBM.ImagesContainer.ClearArt.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.ClearArt.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.ClearArt.LocalFilePath).Replace(oldFile, newFile))
-        If _DBM.ImagesContainer.ClearLogo.LocalFilePathSpecified Then _DBM.ImagesContainer.ClearLogo.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.ClearLogo.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.ClearLogo.LocalFilePath).Replace(oldFile, newFile))
-        If _DBM.ImagesContainer.DiscArt.LocalFilePathSpecified Then _DBM.ImagesContainer.DiscArt.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.DiscArt.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.DiscArt.LocalFilePath).Replace(oldFile, newFile))
-        If _DBM.ImagesContainer.Fanart.LocalFilePathSpecified Then _DBM.ImagesContainer.Fanart.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Fanart.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Fanart.LocalFilePath).Replace(oldFile, newFile))
-        If _DBM.ImagesContainer.Landscape.LocalFilePathSpecified Then _DBM.ImagesContainer.Landscape.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Landscape.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Landscape.LocalFilePath).Replace(oldFile, newFile))
-        If _DBM.ImagesContainer.Poster.LocalFilePathSpecified Then _DBM.ImagesContainer.Poster.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Poster.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Poster.LocalFilePath).Replace(oldFile, newFile))
+        If _DBM.ImagesContainer.Banner.LocalFilePathSpecified Then _DBM.ImagesContainer.Banner.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Banner.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Banner.LocalFilePath).Replace(oldFile, sidecarFile))
+        If _DBM.ImagesContainer.ClearArt.LocalFilePathSpecified Then _DBM.ImagesContainer.ClearArt.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.ClearArt.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.ClearArt.LocalFilePath).Replace(oldFile, sidecarFile))
+        If _DBM.ImagesContainer.ClearLogo.LocalFilePathSpecified Then _DBM.ImagesContainer.ClearLogo.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.ClearLogo.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.ClearLogo.LocalFilePath).Replace(oldFile, sidecarFile))
+        If _DBM.ImagesContainer.DiscArt.LocalFilePathSpecified Then _DBM.ImagesContainer.DiscArt.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.DiscArt.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.DiscArt.LocalFilePath).Replace(oldFile, sidecarFile))
+        If _DBM.ImagesContainer.Fanart.LocalFilePathSpecified Then _DBM.ImagesContainer.Fanart.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Fanart.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Fanart.LocalFilePath).Replace(oldFile, sidecarFile))
+        If _DBM.ImagesContainer.Landscape.LocalFilePathSpecified Then _DBM.ImagesContainer.Landscape.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Landscape.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Landscape.LocalFilePath).Replace(oldFile, sidecarFile))
+        If _DBM.ImagesContainer.Poster.LocalFilePathSpecified Then _DBM.ImagesContainer.Poster.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.ImagesContainer.Poster.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.ImagesContainer.Poster.LocalFilePath).Replace(oldFile, sidecarFile))
         If _DBM.NfoPathSpecified Then _DBM.NfoPath = Path.Combine(Directory.GetParent(_DBM.NfoPath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.NfoPath).Replace(oldFile, newFile))
-        If Not String.IsNullOrEmpty(_DBM.Theme.LocalFilePath) Then _DBM.Theme.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.Theme.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.Theme.LocalFilePath).Replace(oldFile, newFile))
-        If Not String.IsNullOrEmpty(_DBM.Trailer.LocalFilePath) Then _DBM.Trailer.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.Trailer.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.Trailer.LocalFilePath).Replace(oldFile, newFile))
+        If Not String.IsNullOrEmpty(_DBM.Theme.LocalFilePath) Then _DBM.Theme.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.Theme.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.Theme.LocalFilePath).Replace(oldFile, sidecarFile))
+        If Not String.IsNullOrEmpty(_DBM.Trailer.LocalFilePath) Then _DBM.Trailer.LocalFilePath = Path.Combine(Directory.GetParent(_DBM.Trailer.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(_DBM.Trailer.LocalFilePath).Replace(oldFile, sidecarFile))
         If _DBM.ImagesContainer.Extrafanarts.Count > 0 Then
             For Each eImg In _DBM.ImagesContainer.Extrafanarts.Where(Function(f) f.LocalFilePathSpecified)
-                eImg.LocalFilePath = Path.Combine(Directory.GetParent(eImg.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(eImg.LocalFilePath).Replace(oldFile, newFile))
+                eImg.LocalFilePath = Path.Combine(Directory.GetParent(eImg.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(eImg.LocalFilePath).Replace(oldFile, sidecarFile))
             Next
         End If
         If _DBM.ImagesContainer.Extrathumbs.Count > 0 Then
             For Each eImg In _DBM.ImagesContainer.Extrathumbs.Where(Function(f) f.LocalFilePathSpecified)
-                eImg.LocalFilePath = Path.Combine(Directory.GetParent(eImg.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(eImg.LocalFilePath).Replace(oldFile, newFile))
+                eImg.LocalFilePath = Path.Combine(Directory.GetParent(eImg.LocalFilePath).FullName.Replace(oldPath, newPath), Path.GetFileName(eImg.LocalFilePath).Replace(oldFile, sidecarFile))
             Next
         End If
         If _DBM.SubtitlesSpecified Then
@@ -1786,7 +2088,375 @@ Public Class FileFolderRenamer
 
 #End Region 'Methods
 
+#Region "Multi-File handling"
+
+    'Moegliche Behandlungen von Mehrfach-Dateien
+    Private Const MULTIFILE_MODE_PARTS As String = "Parts"
+    Private Const MULTIFILE_MODE_VERSIONS As String = "Versions"
+
+    'Zustand, wenn der Nutzer die Frage abgebrochen hat
+    Private Const MULTIFILE_STATE_CANCELLED As String = "Cancelled"
+
+    'Praefix und Section der AdvancedSettings, in denen die Antworten abgelegt werden
+    Private Const MULTIFILE_PREFIX_TVSHOW As String = "MultiFileMode_TVShow"
+    Private Const MULTIFILE_PREFIX_MOVIE As String = "MultiFileMode_Movie"
+    Private Const MULTIFILE_SECTION As String = "generic.EmberCore.BulkRename"
+
+    ''' <summary>
+    ''' Baut den Schluessel fuer die Antwort eines Elements (Serie oder Film).
+    ''' </summary>
+    Private Shared Function MultiFileKey(ByVal prefix As String, ByVal id As Long) As String
+        Return String.Concat(prefix, "_", id.ToString)
+    End Function
+
+    ''' <summary>
+    ''' Liefert den bekannten Stand der Antwort, ohne den Nutzer zu fragen.
+    ''' </summary>
+    ''' <remarks>Zuerst wird der aktuelle Lauf nachgeschlagen, danach die
+    ''' AdvancedSettings. Ein Abbruch wird als "Cancelled" gemeldet und nicht
+    ''' dauerhaft gespeichert.</remarks>
+    Private Shared Function GetMultiFileModeState(ByVal key As String, ByVal contentType As Enums.ContentType) As String
+        If _multiFileModes.ContainsKey(key) Then
+            Dim cached As String = _multiFileModes(key)
+            If String.IsNullOrEmpty(cached) Then Return MULTIFILE_STATE_CANCELLED
+            Return cached
+        End If
+
+        Dim stored As String = AdvancedSettings.GetSetting(key, String.Empty, MULTIFILE_SECTION, contentType)
+        If stored = MULTIFILE_MODE_PARTS OrElse stored = MULTIFILE_MODE_VERSIONS Then
+            _multiFileModes(key) = stored
+            Return stored
+        End If
+
+        Return String.Empty
+    End Function
+
+    ''' <summary>
+    ''' Liefert die bereits bekannte Antwort, ohne den Nutzer zu fragen.
+    ''' </summary>
+    Private Shared Function GetKnownMultiFileMode(ByVal key As String, ByVal contentType As Enums.ContentType) As String
+        Dim state As String = GetMultiFileModeState(key, contentType)
+        If state = MULTIFILE_STATE_CANCELLED Then Return String.Empty
+        Return state
+    End Function
+
+    ''' <summary>
+    ''' Holt die Antwort des Nutzers und legt sie dauerhaft ab.
+    ''' </summary>
+    ''' <param name="key">Schluessel fuer die dauerhafte Ablage</param>
+    ''' <param name="displayTitle">Titel des Dialogs (Film- oder Serienname)</param>
+    ''' <param name="contentType">Inhaltstyp</param>
+    ''' <param name="affectedItems">Betroffene Folgen oder Filme fuer die Anzeige im Dialog</param>
+    ''' <returns>"Parts", "Versions" oder leer, wenn der Nutzer abgebrochen hat</returns>
+    Private Shared Function GetMultiFileMode(ByVal key As String, ByVal displayTitle As String, ByVal contentType As Enums.ContentType, Optional ByVal affectedItems As IList(Of String) = Nothing) As String
+        If _multiFileModes.ContainsKey(key) Then Return _multiFileModes(key)
+
+        Dim known As String = GetKnownMultiFileMode(key, contentType)
+        If Not String.IsNullOrEmpty(known) Then Return known
+
+        'Der Dialog wird auch im Renamer-Thread (BackgroundWorker) aufgerufen.
+        Using dlg As New dlgMultiFileQuestion(displayTitle, affectedItems, contentType = Enums.ContentType.TVShow)
+            Dim mode As String = String.Empty
+            If dlg.ShowDialog() = DialogResult.OK Then
+                mode = If(dlg.IsParts, MULTIFILE_MODE_PARTS, MULTIFILE_MODE_VERSIONS)
+            End If
+
+            _multiFileModes(key) = mode
+            If Not String.IsNullOrEmpty(mode) Then SaveMultiFileMode(key, mode, contentType)
+            Return mode
+        End Using
+    End Function
+
+    ''' <summary>
+    ''' Setzt die Antwort fuer ein Element und speichert sie dauerhaft.
+    ''' </summary>
+    Private Shared Sub SetMultiFileMode(ByVal key As String, ByVal mode As String, ByVal contentType As Enums.ContentType)
+        _multiFileModes(key) = mode
+        If Not String.IsNullOrEmpty(mode) Then SaveMultiFileMode(key, mode, contentType)
+    End Sub
+
+    ''' <summary>
+    ''' Schreibt die Antwort in die AdvancedSettings.
+    ''' </summary>
+    Private Shared Sub SaveMultiFileMode(ByVal key As String, ByVal mode As String, ByVal contentType As Enums.ContentType)
+        Try
+            Using settings As New AdvancedSettings()
+                settings.SetSetting(key, mode, MULTIFILE_SECTION, False, contentType)
+                'SetSetting aendert nur den Speicher - ohne diesen Aufruf ist die
+                'Antwort beim naechsten Start wieder vergessen.
+                settings.SaveSettings()
+            End Using
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Liefert das Suffix fuer Teile oder Versionen.
+    ''' </summary>
+    Private Shared Function GetMultiFileSuffix(ByVal mode As String, ByVal partNumber As Integer) As String
+        If String.IsNullOrEmpty(mode) OrElse partNumber < 1 Then Return String.Empty
+
+        If mode = MULTIFILE_MODE_PARTS Then
+            'Teile eines Ganzen: auch die erste Datei bekommt "-part-1"
+            Return String.Concat("-part-", partNumber.ToString)
+        ElseIf mode = MULTIFILE_MODE_VERSIONS Then
+            'Versionen: die erste Datei behaelt den Basisnamen
+            If partNumber < 2 Then Return String.Empty
+            Return String.Concat(" - ", partNumber.ToString)
+        End If
+
+        Return String.Empty
+    End Function
+
+    ''' <summary>
+    ''' Haengt das Suffix an den Dateinamen an.
+    ''' </summary>
+    ''' <remarks>Bei Filmen traegt auch der Name der Begleitdateien (NFO, Poster, ...)
+    ''' das Suffix, sonst passen Video und NFO nicht mehr zusammen.</remarks>
+    Private Shared Sub ApplyMultiFileSuffix(ByRef f As FileRename)
+        If f Is Nothing Then Exit Sub
+        If String.IsNullOrEmpty(f.MultiFileMode) Then Exit Sub
+
+        Dim suffix As String = GetMultiFileSuffix(f.MultiFileMode, f.PartNumber)
+        If String.IsNullOrEmpty(suffix) Then Exit Sub
+
+        f.NewFileName = String.Concat(f.NewFileName, suffix)
+        If Not String.IsNullOrEmpty(f.NewSidecarName) Then
+            f.NewSidecarName = String.Concat(f.NewSidecarName, suffix)
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Unterdrueckt den Unterepisoden-Anteil in den $W- und $Q-Tokens.
+    ''' </summary>
+    ''' <remarks>Ohne diese Unterdrueckung entstuende aus "S01E01A" der Name
+    ''' "S01E01.1" und zusaetzlich das Suffix fuer die Teile.</remarks>
+    Private Shared Sub SuppressSubEpisode(ByRef f As FileRename)
+        For Each season As SeasonsEpisodes In f.SeasonsEpisodes
+            For Each episode As Episode In season.Episodes
+                episode.SubEpisode = -1
+            Next
+        Next
+    End Sub
+
+    ''' <summary>
+    ''' Berechnet die Existenz der Zieldatei und das Umbenennungs-Flag neu.
+    ''' </summary>
+    Private Shared Sub UpdateMovieRenameState(ByRef f As FileRename)
+        Dim newFullFileName As String = Path.Combine(f.BasePath, Path.Combine(f.NewPath, String.Concat(f.NewFileName, f.Extension)))
+        Dim newFullDirPath As String = Path.Combine(f.BasePath, f.NewPath)
+        Dim newDirInfo As New DirectoryInfo(newFullDirPath)
+        f.FileExist = File.Exists(newFullFileName) AndAlso Not (newFullFileName.ToLower = f.OldFullFileName.ToLower)
+        f.DirExist = f.IsSingle AndAlso newDirInfo.Exists AndAlso Not If(newFullDirPath.ToLower = f.OldFullPath.ToLower, True, newDirInfo.GetFileSystemInfos.Count = 0)
+        f.DoRename = Not f.NewPath = f.Path OrElse
+                     Not f.NewFileName = f.OldFileName OrElse
+                     (Not String.IsNullOrEmpty(f.NewSidecarName) AndAlso Not f.NewSidecarName = f.OldFileName)
+    End Sub
+
+    ''' <summary>
+    ''' Ermittelt die Nummer der Datei innerhalb ihrer Gruppe.
+    ''' </summary>
+    ''' <remarks>Im Einzelpfad (Umbenennen eines einzelnen Films) wird der Zielordner
+    ''' nach bereits vorhandenen Teilen bzw. Versionen durchsucht. Eine Datei ohne
+    ''' Suffix zaehlt dabei als Teil 1 bzw. Version 1.</remarks>
+    Private Shared Function GetMultiFilePartNumber(ByVal f As FileRename, ByVal mode As String) As Integer
+        Dim number As Integer = 1
+
+        Try
+            Dim destDir As String = Path.Combine(f.BasePath, f.NewPath)
+            If Not Directory.Exists(destDir) Then Return number
+
+            For Each file As FileInfo In New DirectoryInfo(destDir).GetFiles()
+                Dim name As String = Path.GetFileNameWithoutExtension(file.Name)
+
+                If mode = MULTIFILE_MODE_PARTS Then
+                    Dim partMatch As Match = Regex.Match(name, String.Concat(Regex.Escape(f.NewFileName), "-part-(\d+)$"), RegexOptions.IgnoreCase)
+                    If partMatch.Success Then
+                        Dim partNumber As Integer = 0
+                        If Integer.TryParse(partMatch.Groups(1).Value, partNumber) Then number = Math.Max(number, partNumber + 1)
+                    ElseIf name.Equals(f.NewFileName, StringComparison.OrdinalIgnoreCase) Then
+                        'Die vorhandene Datei ohne Suffix ist Teil 1
+                        number = Math.Max(number, 2)
+                    End If
+                Else
+                    If name.Equals(f.NewFileName, StringComparison.OrdinalIgnoreCase) Then
+                        'Die vorhandene Datei ohne Suffix ist Version 1
+                        number = Math.Max(number, 2)
+                    Else
+                        Dim versionMatch As Match = Regex.Match(name, String.Concat(Regex.Escape(f.NewFileName), " - (\d+)$"), RegexOptions.IgnoreCase)
+                        If versionMatch.Success Then
+                            Dim versionNumber As Integer = 0
+                            If Integer.TryParse(versionMatch.Groups(1).Value, versionNumber) Then number = Math.Max(number, versionNumber + 1)
+                        End If
+                    End If
+                End If
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+
+        Return number
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob zu einer Folge der Serie mehrere Dateien gehoeren.
+    ''' </summary>
+    ''' <returns>Der Modus ("Parts" oder "Versions") oder leer, wenn es keine
+    ''' Mehrfach-Datei-Situation gibt oder der Nutzer abgebrochen hat</returns>
+    Private Shared Function GetTVShowMultiFileMode(ByVal _tmpShow As Database.DBElement, ByVal episodeGroups As Dictionary(Of String, List(Of EpisodeFileInfo))) As String
+        Try
+            'Gehoeren mehrere Dateien zu derselben Folge?
+            Dim hasMultipleFiles As Boolean = episodeGroups.Values.Any(Function(g) g.Select(Function(i) i.File.OldFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count > 1)
+            If Not hasMultipleFiles Then Return String.Empty
+
+            Dim showTitle As String = String.Empty
+            If _tmpShow.TVShow IsNot Nothing AndAlso _tmpShow.TVShow.TitleSpecified Then showTitle = _tmpShow.TVShow.Title
+
+            'Die betroffenen Folgen auflisten, damit der Nutzer sieht, worum es geht
+            Dim affected As New List(Of String)
+            For Each group In episodeGroups.Values.Where(Function(g) g.Select(Function(i) i.File.OldFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count > 1)
+                Dim first = group.FirstOrDefault()
+                If first IsNot Nothing AndAlso first.Element IsNot Nothing AndAlso first.Element.TVEpisode IsNot Nothing Then
+                    Dim ep = first.Element.TVEpisode
+                    Dim label As String = String.Format("S{0:00}E{1:00}", ep.Season, ep.Episode)
+                    If ep.TitleSpecified AndAlso Not String.IsNullOrEmpty(ep.Title) Then
+                        label = String.Concat(label, " - ", ep.Title)
+                    End If
+                    If Not affected.Contains(label) Then affected.Add(label)
+                End If
+            Next
+            affected.Sort()
+
+            Return GetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_TVSHOW, _tmpShow.ShowID), showTitle, Enums.ContentType.TVShow, affected)
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+            Return String.Empty
+        End Try
+    End Function
+
+    ''' <summary>
+    ''' Setzt Modus und Nummer der Datei innerhalb ihrer Gruppe.
+    ''' </summary>
+    Private Shared Sub SetMultiFileInfo_Episode(ByRef info As EpisodeFileInfo, ByVal episodeGroups As Dictionary(Of String, List(Of EpisodeFileInfo)), ByVal mode As String)
+        If Not episodeGroups.ContainsKey(info.GroupKey) Then Exit Sub
+
+        Dim group As List(Of EpisodeFileInfo) = episodeGroups(info.GroupKey)
+
+        'Nur Folgen, zu denen mehrere Dateien gehoeren, bekommen einen Suffix.
+        'Eine einzelne Datei pro Folge bleibt ohne "-part-1" o.ae.
+        If group.Select(Function(i) i.File.OldFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count < 2 Then Exit Sub
+
+        Dim number As Integer = 0
+        Dim lastFileName As String = String.Empty
+
+        For Each item As EpisodeFileInfo In group.OrderBy(Function(i) i.File.OldFileName, StringComparer.OrdinalIgnoreCase)
+            'Dateien, die mehrfach in der Gruppe stehen, bekommen dieselbe Nummer
+            If Not item.File.OldFileName.Equals(lastFileName, StringComparison.OrdinalIgnoreCase) Then
+                number += 1
+                lastFileName = item.File.OldFileName
+            End If
+
+            If item.File.ID = info.File.ID Then
+                info.File.MultiFileMode = mode
+                info.File.PartNumber = number
+                Exit For
+            End If
+        Next
+    End Sub
+
+    ''' <summary>
+    ''' Sucht Filme, die denselben Zielnamen bekommen, und benennt sie um.
+    ''' </summary>
+    Private Sub HandleMultiFile_Movies()
+        Try
+            Dim groups As New Dictionary(Of String, List(Of FileRename))
+
+            For Each f As FileRename In _movies
+                Dim groupKey As String = String.Concat(f.NewPath.ToLower, "|", f.NewFileName.ToLower)
+                If Not groups.ContainsKey(groupKey) Then groups.Add(groupKey, New List(Of FileRename))
+                groups(groupKey).Add(f)
+            Next
+
+            For Each group As List(Of FileRename) In groups.Values.Where(Function(g) g.Count > 1)
+                Dim ordered As List(Of FileRename) = group.OrderBy(Function(x) x.OldFileName, StringComparer.OrdinalIgnoreCase).ToList()
+
+                'Antwort der Gruppe ermitteln: bekannte Antwort oder eine Frage
+                Dim mode As String = String.Empty
+                Dim cancelled As Boolean = False
+
+                For Each f As FileRename In ordered
+                    Dim state As String = GetMultiFileModeState(MultiFileKey(MULTIFILE_PREFIX_MOVIE, f.ID), Enums.ContentType.Movie)
+                    If state = MULTIFILE_STATE_CANCELLED Then
+                        cancelled = True
+                        Exit For
+                    ElseIf Not String.IsNullOrEmpty(state) Then
+                        mode = state
+                    End If
+                Next
+
+                If Not cancelled AndAlso String.IsNullOrEmpty(mode) Then
+                    Dim affected As New List(Of String)
+                    If Not String.IsNullOrEmpty(ordered.First.Title) Then affected.Add(ordered.First.Title)
+                    mode = GetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_MOVIE, ordered.First.ID), ordered.First.Title, Enums.ContentType.Movie, affected)
+                End If
+
+                'Nutzer hat abgebrochen: fuer diese Filme wird nichts umbenannt
+                If cancelled OrElse String.IsNullOrEmpty(mode) Then
+                    For Each f As FileRename In ordered
+                        Dim key As String = MultiFileKey(MULTIFILE_PREFIX_MOVIE, f.ID)
+                        If String.IsNullOrEmpty(GetMultiFileModeState(key, Enums.ContentType.Movie)) Then
+                            'Als abgebrochen merken, damit in diesem Lauf nicht erneut gefragt wird
+                            _multiFileModes(key) = String.Empty
+                        End If
+                    Next
+                    Continue For
+                End If
+
+                'Die Antwort gilt fuer alle Filme der Gruppe
+                For Each f As FileRename In ordered
+                    SetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_MOVIE, f.ID), mode, Enums.ContentType.Movie)
+                Next
+
+                Dim number As Integer = 0
+                Dim lastFileName As String = String.Empty
+                For Each f As FileRename In ordered
+                    If Not f.OldFileName.Equals(lastFileName, StringComparison.OrdinalIgnoreCase) Then
+                        number += 1
+                        lastFileName = f.OldFileName
+                    End If
+
+                    f.MultiFileMode = mode
+                    f.PartNumber = number
+                    ApplyMultiFileSuffix(f)
+                    UpdateMovieRenameState(f)
+                Next
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+
+#End Region 'Multi-File handling
+
 #Region "Nested Types"
+
+    ''' <summary>
+    ''' Zuordnung einer Episode zu ihrer Datei fuer die Mehrfach-Datei-Erkennung.
+    ''' </summary>
+    Private Class EpisodeFileInfo
+
+#Region "Properties"
+
+        Public Property Element() As Database.DBElement = Nothing
+
+        Public Property File() As FileRename = Nothing
+
+        Public Property GroupKey() As String = String.Empty
+
+#End Region 'Properties
+
+    End Class
 
     Class FileRename
 
@@ -1834,6 +2504,9 @@ Public Class FileFolderRenamer
 
         Public Property MPAA() As String = String.Empty
 
+        'Parts oder Versions bei mehreren Dateien zu einem Titel
+        Public Property MultiFileMode() As String = String.Empty
+
         Public Property MultiViewCount() As String = String.Empty
 
         Public Property MultiViewLayout() As String = String.Empty
@@ -1841,6 +2514,8 @@ Public Class FileFolderRenamer
         Public Property NewFileName() As String = String.Empty
 
         Public Property NewPath() As String = String.Empty
+
+        Public Property NewSidecarName() As String = String.Empty
 
         Public Property OldFileName() As String = String.Empty
 
@@ -1851,6 +2526,9 @@ Public Class FileFolderRenamer
         Public Property OldPath() As String = String.Empty
 
         Public Property OriginalTitle() As String = String.Empty
+
+        'Nummer der Datei innerhalb ihrer Gruppe (1-basiert)
+        Public Property PartNumber() As Integer = 0
 
         Public Property Parent() As String = String.Empty
 

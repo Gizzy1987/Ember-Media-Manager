@@ -771,7 +771,7 @@ Public Class Enums
     End Enum
 
     Public Enum SortMethod_MovieSet As Integer
-        Year = 0    'default in Kodi, so have to be on the first position of enumeration
+        Year = 0    'default in Jellyfin, so have to be on the first position of enumeration
         Title = 1
     End Enum
 
@@ -968,7 +968,10 @@ Public Class Functions
     ''' </summary>
     ''' <param name="timestamp">A valid unix-style timestamp</param>
     ''' <returns>An appropriately formatted DateTime representing the supplied timestamp</returns>
-    ''' <remarks></remarks>
+    ''' <remarks>Hinweis: Die Zeitstempel in der Datenbank sind bewusst als lokale Wanduhr
+    ''' gespeichert (kein echtes UTC). Der Round-Trip ist exakt und Schreib- und Lesepfade
+    ''' sind symmetrisch - eine Umstellung auf UTC wuerde alle bestehenden Werte um den
+    ''' UTC-Offset verschieben. Das Verhalten bleibt daher unveraendert.</remarks>
     ''' <exception cref="ArgumentException"> thrown when <paramref name="timestamp"/> is <c>Double.NAN</c>.</exception>
     ''' <exception cref="ArgumentOutOfRangeException"> thrown when <paramref name="timestamp"/> is <c>Double.NegativeInfinity</c> or <c>Double.PositiveInfinity</c>,
     ''' or if resulting <c>DateTime</c> would be outside the bounds of Jan 1, 0001 and Dec 31, 9999</exception>
@@ -1005,7 +1008,9 @@ Public Class Functions
     ''' </summary>
     ''' <param name="data">A valid VB-style DateTime</param>
     ''' <returns>A value representing the DateTime as a unix-style timestamp <c>Double</c></returns>
-    ''' <remarks></remarks>
+    ''' <remarks>Hinweis: Der Zeitstempel wird bewusst als lokale Wanduhr berechnet
+    ''' (kein echtes UTC) - passend zu <see cref="ConvertFromUnixTimestamp"/> und zu den
+    ''' lokalen Zeitstempeln der Dateisysteme. Das Verhalten bleibt unveraendert.</remarks>
     Public Shared Function ConvertToUnixTimestamp(ByVal data As DateTime) As Double
         Dim origin As Date = New DateTime(1970, 1, 1, 0, 0, 0, 0)
         Dim diff As TimeSpan = data - origin
@@ -1623,43 +1628,65 @@ Public Class Functions
     ''' <param name="Process_TimeOut">Timeout value - closes after specific time frame</param>
     Public Shared Function Run_Process(ByVal Process_Name As String, Optional Process_Arguments As String = Nothing, Optional Read_Output As Boolean = False, Optional Process_Hide As Boolean = False, Optional Process_TimeOut As Integer = 30000) As String
 
-        Dim OutputString As String = String.Empty
+        'Die Ausgabe wird im Event-Thread des Prozesses geschrieben und hier im
+        'aufrufenden Thread gelesen - daher wird sie ueber einen StringBuilder
+        'mit Sperre gesammelt.
+        Dim OutputBuilder As New System.Text.StringBuilder()
 
         Try
             Using My_Process As New Process()
-                AddHandler My_Process.OutputDataReceived, Sub(sender As Object, LineOut As DataReceivedEventArgs)
-                                                              OutputString = OutputString & LineOut.Data ' & vbCrLf
+                Dim OutputHandler As DataReceivedEventHandler = Sub(sender As Object, LineOut As DataReceivedEventArgs)
+                                                              If LineOut IsNot Nothing Then
+                                                                  SyncLock OutputBuilder
+                                                                      OutputBuilder.AppendLine(LineOut.Data)
+                                                                  End SyncLock
+                                                              End If
                                                           End Sub
+                AddHandler My_Process.OutputDataReceived, OutputHandler
 
-                Dim My_Process_Info As New ProcessStartInfo()
-                My_Process_Info.FileName = Process_Name ' Process filename
-                My_Process_Info.Arguments = Process_Arguments ' Process arguments
-                My_Process_Info.CreateNoWindow = Process_Hide ' Show or hide the process Window
-                My_Process_Info.UseShellExecute = False ' Don't use system shell to execute the process
-                My_Process_Info.RedirectStandardOutput = Read_Output '  Redirect Output
-                My_Process_Info.RedirectStandardError = Read_Output ' Redirect non Output
-                My_Process.EnableRaisingEvents = True ' Raise events
-                My_Process.StartInfo = My_Process_Info
+                Try
+                    Dim My_Process_Info As New ProcessStartInfo()
+                    My_Process_Info.FileName = Process_Name ' Process filename
+                    My_Process_Info.Arguments = Process_Arguments ' Process arguments
+                    My_Process_Info.CreateNoWindow = Process_Hide ' Show or hide the process Window
+                    My_Process_Info.UseShellExecute = False ' Don't use system shell to execute the process
+                    My_Process_Info.RedirectStandardOutput = Read_Output '  Redirect Output
+                    My_Process_Info.RedirectStandardError = Read_Output ' Redirect non Output
+                    My_Process.EnableRaisingEvents = True ' Raise events
+                    My_Process.StartInfo = My_Process_Info
 
-                My_Process.Start() ' Run the process NOW
+                    My_Process.Start() ' Run the process NOW
 
-                If Read_Output = True Then
-                    System.Threading.Thread.Sleep(500)
-                    My_Process.BeginOutputReadLine()
-                    System.Threading.Thread.Sleep(1000)
-                    Do
-                        'TODO?!
-                    Loop Until My_Process.HasExited
-                End If
-                '    RemoveHandler My_Process.OutputDataReceived, AddressOf proc_DataReceived
-                My_Process.WaitForExit(Process_TimeOut) ' Wait X ms to kill the process (Default value is 30000 ms)
-                My_Process.Close()
+                    If Read_Output = True Then
+                        My_Process.BeginOutputReadLine()
+                    End If
+
+                    'Warten bis der Prozess beendet ist, ohne die CPU zu belasten
+                    If Not My_Process.WaitForExit(Process_TimeOut) Then
+                        logger.Error("[Functions] [Run_Process] Timeout - process <{0}> is killed", Process_Name)
+                        Try
+                            My_Process.Kill()
+                        Catch ex As Exception
+                            logger.Error(ex, New StackFrame().GetMethod().Name)
+                        End Try
+                        My_Process.WaitForExit(5000)
+                    ElseIf Read_Output Then
+                        'Sicherstellen, dass die asynchrone Ausgabe vollstaendig gelesen wurde
+                        My_Process.WaitForExit()
+                    End If
+
+                    My_Process.Close()
+                Finally
+                    RemoveHandler My_Process.OutputDataReceived, OutputHandler
+                End Try
             End Using
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name & Convert.ToChar(Windows.Forms.Keys.Tab) & "Could not launch <" & Process_Name & ">")
         End Try
 
-        Return OutputString
+        SyncLock OutputBuilder
+            Return OutputBuilder.ToString()
+        End SyncLock
     End Function
 #End Region 'Methods
 
@@ -1829,6 +1856,11 @@ Public Class Structures
         Dim bSeasonAired As Boolean
         Dim bSeasonPlot As Boolean
         Dim bSeasonTitle As Boolean
+        ''' <summary>
+        ''' If True, existing data is kept and only empty fields are filled with scraped data.
+        ''' If False (default), the scraped data replaces the existing data.
+        ''' </summary>
+        Dim bKeepExisting As Boolean
     End Structure
 
     Public Structure SettingsResult

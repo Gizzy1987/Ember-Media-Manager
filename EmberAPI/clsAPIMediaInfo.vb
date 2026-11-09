@@ -673,7 +673,7 @@ Public Class MediaInfo
         For v As Integer = 0 To VideoStreams - 1
             miVideo = New MediaContainers.Video
             'cocotus, It's possible that duration returns empty when retrieved from videostream data - so instead use "General" section of MediaInfo.dll to read duration (is always filled!)
-            'More here: http://forum.xbmc.org/showthread.php?tid=169900 
+            'More here: https://jellyfin.org/docs/general/server/media/movies/ 
             miVideo.Duration = Get_(StreamKind.Visual, v, "Duration/String1")
             If miVideo.Duration = String.Empty Then
                 miVideo.Duration = Get_(StreamKind.General, 0, "Duration/String1")
@@ -793,7 +793,7 @@ Public Class MediaInfo
                                 miVideo.Duration = fiIFO.StreamDetails.Video(0).Duration
                             Else
                                 'cocotus, It's possible that duration returns empty when retrieved from videostream data - so instead use "General" section of MediaInfo.dll to read duration (is always filled!)
-                                'More here: http://forum.xbmc.org/showthread.php?tid=169900 
+                                'More here: https://jellyfin.org/docs/general/server/media/movies/ 
                                 miVideo.Duration = Get_(StreamKind.Visual, 0, "Duration/String1")
                                 If miVideo.Duration = String.Empty Then
                                     miVideo.Duration = Get_(StreamKind.General, 0, "Duration/String1")
@@ -801,7 +801,7 @@ Public Class MediaInfo
                             End If
                         Else
                             'cocotus, It's possible that duration returns empty when retrieved from videostream data - so instead use "General" section of MediaInfo.dll to read duration (is always filled!)
-                            'More here: http://forum.xbmc.org/showthread.php?tid=169900 
+                            'More here: https://jellyfin.org/docs/general/server/media/movies/ 
                             miVideo.Duration = Get_(StreamKind.Visual, 0, "Duration/String1")
                             If miVideo.Duration = String.Empty Then
                                 miVideo.Duration = Get_(StreamKind.General, 0, "Duration/String1")
@@ -841,7 +841,7 @@ Public Class MediaInfo
                             miVideo.Duration = fiIFO.StreamDetails.Video(v).Duration
                         Else
                             'cocotus, It's possible that duration returns empty when retrieved from videostream data - so instead use "General" section of MediaInfo.dll to read duration (is always filled!)
-                            'More here: http://forum.xbmc.org/showthread.php?tid=169900 
+                            'More here: https://jellyfin.org/docs/general/server/media/movies/ 
                             miVideo.Duration = Get_(StreamKind.Visual, v, "Duration/String1")
                             If miVideo.Duration = String.Empty Then
                                 miVideo.Duration = Get_(StreamKind.General, 0, "Duration/String1")
@@ -849,7 +849,7 @@ Public Class MediaInfo
                         End If
                     Else
                         'cocotus, It's possible that duration returns empty when retrieved from videostream data - so instead use "General" section of MediaInfo.dll to read duration (is always filled!)
-                        'More here: http://forum.xbmc.org/showthread.php?tid=169900 
+                        'More here: https://jellyfin.org/docs/general/server/media/movies/ 
                         miVideo.Duration = Get_(StreamKind.Visual, v, "Duration/String1")
                         If miVideo.Duration = String.Empty Then
                             miVideo.Duration = Get_(StreamKind.General, 0, "Duration/String1")
