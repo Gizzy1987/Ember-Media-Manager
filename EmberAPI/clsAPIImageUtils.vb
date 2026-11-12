@@ -131,9 +131,9 @@ Public Class ImageUtils
             Dim sPropPerc As Single = 1.0 'no default scaling
 
             If _image.Width > _image.Height Then
-                sPropPerc = CSng(maxWidth / _image.Width)
+                sPropPerc = CSng(maxWidth) / CSng(_image.Width)
             Else
-                sPropPerc = CSng(maxHeight / _image.Height)
+                sPropPerc = CSng(maxHeight) / CSng(_image.Height)
             End If
 
             ' Get the source bitmap.
@@ -192,7 +192,12 @@ Public Class ImageUtils
                 Dim sPropPerc As Single = 1.0 'no default scaling
                 pbDestination.Size = New Size(maxWidth, maxHeight)
 
-                If Not pbDestination.Image Is Nothing Then pbDestination.Image.Dispose()
+                'Das alte Image wird NICHT vor der Neuzuweisung freigegeben.
+                'Andernfalls haelt die PictureBox zwischenzeitlich eine bereits
+                'disposed Image-Referenz. Ein Paint in diesem Fenster laesst
+                'Image.get_Width mit "Ungueltiger Parameter" fehlschlagen und
+                'reisst das Programm ab (siehe InfoScreen_Show_Images).
+                Dim oldImage As Image = pbDestination.Image
 
                 If Not DoClip Then
                     pbDestination.SizeMode = PictureBoxSizeMode.Normal
@@ -245,6 +250,13 @@ Public Class ImageUtils
                     End Using
                 End Using
 
+                'Erst jetzt wird das alte Image freigegeben - die PictureBox
+                'zeigt bereits das neue, lebende Image.
+                'Ist das alte Image das gleiche Objekt wie das Quell-Image,
+                'gehoert es einer anderen Instanz und darf hier nicht freigegeben
+                'werden.
+                If oldImage IsNot Nothing AndAlso Not Object.ReferenceEquals(oldImage, pbSource.Image) Then oldImage.Dispose()
+
             Catch ex As Exception
                 pbDestination.Left = 0
                 pbDestination.Size = New Size(maxWidth, maxHeight)
@@ -264,24 +276,32 @@ Public Class ImageUtils
         If (pbUnderlay Is Nothing) OrElse (pbUnderlay.Image Is Nothing) Then Return
 
         Try
+            Dim oldImage As Image = pbUnderlay.Image
             Dim bmOverlay As New Bitmap(pbUnderlay.Image)
-            Using grOverlay As Graphics = Graphics.FromImage(bmOverlay)
-                Dim bmHeight As Integer = Convert.ToInt32(pbUnderlay.Image.Height * 0.65)
 
+            Using grOverlay As Graphics = Graphics.FromImage(bmOverlay)
                 grOverlay.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
 
-                grOverlay.DrawImage(Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "Overlay.png")), 0, 0, pbUnderlay.Image.Width, bmHeight)
-                pbUnderlay.Image = bmOverlay
+                Dim bmHeight As Integer = Convert.ToInt32(bmOverlay.Height * 0.65)
 
-                bmOverlay = New Bitmap(pbUnderlay.Image)
+                'Die Overlay-Bilder werden in einem Using-Block geladen - sonst
+                'bleiben die Dateihandles bis zum Programmende offen.
+                Using overlay As Image = Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "Overlay.png"))
+                    grOverlay.DrawImage(overlay, 0, 0, bmOverlay.Width, bmHeight)
+                End Using
+
+                Using overlay As Image = Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "Overlay2.png"))
+                    grOverlay.DrawImage(overlay, 0, 0, bmOverlay.Width, bmOverlay.Height)
+                End Using
             End Using
-            Using grOverlay = Graphics.FromImage(bmOverlay)
 
-                grOverlay.DrawImage(Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "Overlay2.png")), 0, 0, pbUnderlay.Image.Width, pbUnderlay.Image.Height)
-                pbUnderlay.Image = bmOverlay
-
-            End Using
+            'Erst zuweisen, dann das alte Image freigeben. Andernfalls haelt die
+            'PictureBox kurzzeitig eine disposed Image-Referenz und ein Paint
+            'laesst Image.get_Width mit "Ungueltiger Parameter" fehlschlagen.
+            pbUnderlay.Image = bmOverlay
             bmOverlay = Nothing
+
+            If oldImage IsNot Nothing Then oldImage.Dispose()
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)
         End Try

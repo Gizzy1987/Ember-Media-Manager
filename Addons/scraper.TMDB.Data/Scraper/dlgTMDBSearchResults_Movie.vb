@@ -250,7 +250,9 @@ Public Class dlgTMDBSearchResults_Movie
             lblYear.Text = _tmpMovie.Year
             lblDirectors.Text = String.Join(" / ", _tmpMovie.Directors.ToArray)
             lblGenre.Text = String.Join(" / ", _tmpMovie.Genres.ToArray)
-            txtPlot.Text = StringUtils.ShortenOutline(_tmpMovie.Plot, 410)
+            'Der Text wird nicht mehr gekuerzt: das Textfeld hat jetzt eine
+            'Scrollbar, damit der komplette Text lesbar bleibt.
+            txtPlot.Text = If(_tmpMovie.Plot, String.Empty)
             lblTMDBID.Text = _tmpMovie.UniqueIDs.TMDbId.ToString
 
             If _PosterCache.ContainsKey(_tmpMovie.UniqueIDs.TMDbId.ToString) Then

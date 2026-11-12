@@ -113,7 +113,9 @@ Partial Class dlgTMDBSearchResults_MovieSet
         Me.txtPlot.Location = New System.Drawing.Point(298, 325)
         Me.txtPlot.Multiline = True
         Me.txtPlot.Name = "txtPlot"
-        Me.txtPlot.Size = New System.Drawing.Size(343, 100)
+        Me.txtPlot.ReadOnly = True
+        Me.txtPlot.ScrollBars = System.Windows.Forms.ScrollBars.Vertical
+        Me.txtPlot.Size = New System.Drawing.Size(343, 122)
         Me.txtPlot.TabIndex = 22
         Me.txtPlot.TabStop = False
         Me.txtPlot.Visible = False
@@ -201,7 +203,7 @@ Partial Class dlgTMDBSearchResults_MovieSet
         '
         Me.lblTMDBID.AutoSize = True
         Me.lblTMDBID.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lblTMDBID.Location = New System.Drawing.Point(476, 277)
+        Me.lblTMDBID.Location = New System.Drawing.Point(496, 277)
         Me.lblTMDBID.Name = "lblTMDBID"
         Me.lblTMDBID.Size = New System.Drawing.Size(37, 13)
         Me.lblTMDBID.TabIndex = 20
@@ -320,7 +322,7 @@ Partial Class dlgTMDBSearchResults_MovieSet
         Me.AutoScaleDimensions = New System.Drawing.SizeF(96.0!, 96.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi
         Me.CancelButton = Me.Cancel_Button
-        Me.ClientSize = New System.Drawing.Size(664, 494)
+        Me.ClientSize = New System.Drawing.Size(664, 518)
         Me.ControlBox = False
         Me.Controls.Add(Me.btnOpenFolder)
         Me.Controls.Add(Me.txtFileName)
@@ -346,7 +348,7 @@ Partial Class dlgTMDBSearchResults_MovieSet
         Me.Icon = CType(resources.GetObject("$this.Icon"), System.Drawing.Icon)
         Me.MaximizeBox = False
         Me.MinimizeBox = False
-        Me.MinimumSize = New System.Drawing.Size(670, 500)
+        Me.MinimumSize = New System.Drawing.Size(670, 524)
         Me.Name = "dlgTMDBSearchResults_MovieSet"
         Me.Text = "Search Results"
         CType(Me.pbPoster, System.ComponentModel.ISupportInitialize).EndInit()

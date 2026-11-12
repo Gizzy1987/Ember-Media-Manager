@@ -60,6 +60,27 @@ Public Class Images
         End Get
     End Property
 
+    ''' <summary>
+    ''' Gibt das intern gehaltene Image an einen Aufrufer ab, der es in einer
+    ''' PictureBox anzeigt, ohne dass der Container es freigibt.
+    ''' </summary>
+    ''' <remarks>
+    ''' Das Bild darf nicht gleichzeitig in einer PictureBox und in diesem
+    ''' Container gehalten werden: Clear() wuerde das Image freigeben und die
+    ''' PictureBox wuerde danach ein disposed Image malen. Genau das fuehrte zum
+    ''' Absturz beim Scrapen (ArgumentException "Ungueltiger Parameter" in
+    ''' PictureBox.OnPaint).
+    '''
+    ''' Mit dieser Methode gibt der Container die Verfuegung ueber das Image ab
+    ''' und gibt es nicht mehr frei. Der Aufrufer uebernimmt die Verantwortung
+    ''' fuer die Freigabe.
+    ''' </remarks>
+    Public Function ReleaseImage() As Image
+        Dim tmpImage As Image = _image
+        _image = Nothing
+        Return tmpImage
+    End Function
+
 #End Region 'Properties
 
 #Region "Methods"
@@ -98,7 +119,13 @@ Public Class Images
     ''' <summary>
     ''' Reset this instance to a pristine condition
     ''' </summary>
-    ''' <remarks></remarks>
+    ''' <remarks>
+    ''' Das intern gehaltene Image wird freigegeben. Achtung: Wird das Image
+    ''' gleichzeitig in einer PictureBox angezeigt, fuehrt das beim Paint zum
+    ''' Absturz ("Ungueltiger Parameter" in Image.get_Width). In dem Fall muss
+    ''' das Image vorher ueber <see cref="ReleaseImage"/> aus dem Container
+    ''' herausgeloest werden.
+    ''' </remarks>
     Public Sub Clear()
         ResetImage()
     End Sub

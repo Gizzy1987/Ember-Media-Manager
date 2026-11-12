@@ -77,10 +77,19 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-    <Reference Include="NLog, Version=3.1.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
+    <!--
+      MSTest v1 (Microsoft.VisualStudio.QualityTools.UnitTestFramework v10).
+      Die Assembly liegt nicht mehr im GAC aktueller Visual-Studio-Installationen,
+      deshalb wird sie als NuGet-Paket im Repository mitgefuehrt und per
+      HintPath eingebunden. Das haelt den Build lokal wie in der CI lauffaehig.
+    -->
+    <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\NLog.3.1.0.0\lib\net45\NLog.dll</HintPath>
+      <HintPath>..\packages\Unofficial.Microsoft.VisualStudio.QualityTools.UnitTestFramework.10.0.0\lib\net40\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll</HintPath>
+    </Reference>
+    <Reference Include="NLog, Version=4.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\NLog.4.7.14\lib\net45\NLog.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -127,6 +136,7 @@
     <Compile Include="Test_clsAPIImages.vb" />
     <Compile Include="Test_clsAPINumUtils.vb" />
     <Compile Include="Test_clsAPIFileUtils.vb" />
+    <Compile Include="Test_clsAPIFileUtils_Stacking.vb" />
     <Compile Include="My Project\AssemblyInfo.vb" />
     <Compile Include="My Project\Application.Designer.vb">
       <AutoGen>True</AutoGen>
@@ -143,11 +153,23 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
     <Compile Include="Test_clsAPICommon.vb" />
-    <Compile Include="Test_clsAPIHTTP.vb" />
-    <Compile Include="Test_clsYouTube.vb" />
-    <Compile Include="Test_clsTrailers.vb" />
-    <Compile Include="Test_clsAPIErrorLog.vb" />
+    <!--
+      Test_clsAPIHTTP.vb und Test_clsYouTube.vb sind nicht im Build: sie testen
+      die entfernten APIs HTTP.IsValidURL, YouTube.Scraper.GetVideoLinks und
+      YouTube.VideoLinkItem (Trailer-Rewrite 6f9e4ff1). Die Dateien bleiben zur
+      Referenz im Repository erhalten.
+    -->
+    <!--
+      Test_clsAPIErrorLog.vb ist nicht im Build: die getestete Klasse ErrorLogger
+      existiert in EmberAPI nicht mehr. Das Logging laeuft inzwischen ueber NLog.
+      Die Datei bleibt zur Referenz im Repository erhalten.
+    -->
     <Compile Include="Test_clsAPIStringUtils.vb" />
+    <Compile Include="Test_clsAPIImageUtils_UseAfterDispose.vb" />
+    <Compile Include="Test_clsAPITVMerge.vb" />
+    <Compile Include="Test_clsAPIScannerNFO.vb" />
+    <Compile Include="Test_clsAPIScannerTVDetection.vb" />
+    <Compile Include="Test_clsAPIBulkRename.vb" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="ImageFeedback.resx">
@@ -183,6 +205,14 @@
     <ProjectReference Include="..\UnitTests\UnitTests.vbproj">
       <Project>{8160971e-1b33-4d0f-9355-2f8d3e833288}</Project>
       <Name>UnitTests</Name>
+    </ProjectReference>
+    <!--
+      Das BulkRename-Addon wird fuer die Tests der Mehrfach-Datei-Logik
+      (Suffix-Vergabe, Zielnamen-Eindeutigkeit) als Projektverweis benoetigt.
+    -->
+    <ProjectReference Include="..\Addons\generic.EmberCore.BulkRename\generic.EmberCore.BulkRename.vbproj">
+      <Project>{EAAB0601-6478-44D2-A39C-89B0850D7833}</Project>
+      <Name>generic.EmberCore.BulkRename</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

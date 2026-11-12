@@ -251,7 +251,9 @@ Public Class dlgTVDBSearchResults
             lblYear.Text = _tmpTVShow.Premiered
             lblCreator.Text = String.Join(" / ", _tmpTVShow.Creators.ToArray)
             lblGenre.Text = String.Join(" / ", _tmpTVShow.Genres.ToArray)
-            txtPlot.Text = StringUtils.ShortenOutline(_tmpTVShow.Plot, 410)
+            'Der Text wird nicht mehr gekuerzt: das Textfeld hat jetzt eine
+            'Scrollbar, damit der komplette Text lesbar bleibt.
+            txtPlot.Text = If(_tmpTVShow.Plot, String.Empty)
             lblTVDBID.Text = _tmpTVShow.UniqueIDs.TVDbId.ToString
 
             If _PosterCache.ContainsKey(_tmpTVShow.UniqueIDs.TVDbId.ToString) Then

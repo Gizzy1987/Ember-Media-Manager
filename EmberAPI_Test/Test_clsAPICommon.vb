@@ -18,6 +18,7 @@
 ' # along with Ember Media Manager.  If not, see <http://www.gnu.org/licenses/>. #
 ' ################################################################################
 
+Imports System.Drawing
 Imports System.Text
 Imports Microsoft.VisualStudio.TestTools.UnitTesting
 
@@ -28,19 +29,8 @@ Imports UnitTests
 Namespace EmberTests
 
     <TestClass()> Public Class Test_clsAPICommon_Functions
-        <UnitTest>
-        <TestMethod()> Public Sub Functions_CheckIfWindows()
-            'Arrange
-            Dim expectedResult As Boolean
-            expectedResult = Environment.OSVersion.ToString.ToLower.IndexOf("windows") > 0
-
-            'Act
-            Dim actualResult = Functions.CheckIfWindows()
-
-            'Assert
-            Assert.AreEqual(expectedResult, actualResult)
-
-        End Sub 'CheckIfWindows
+        'Hinweis: Functions.CheckIfWindows existiert in EmberAPI nicht mehr und hat keinen Ersatz.
+        'Der zugehoerige Test wurde deshalb entfernt.
 
         <UnitTest>
         <TestMethod()> Public Sub Functions_ConvertFromUnixTimestamp_Valid()
@@ -183,66 +173,8 @@ Namespace EmberTests
             Assert.Inconclusive("Test not implemented")
             'This test would involve some setup...
         End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub Functions_ListToStringWithSeparator_Happy_Day()
-            'Arrange
-            Dim sourceList = New List(Of String) From {{"First"}, {"Second"}, {"Third"}, {"Fourth"}, {"Last"}}
-            Dim separator = ";"
-            'Act
-            Dim result As String = Functions.ListToStringWithSeparator(sourceList, separator)
-            Dim expected = "First;Second;Third;Fourth;Last"
-            'Assert
-            Assert.AreEqual(expected, result, False, "Supplied List: <{0}> Separator: <{1}> and received <{2}>", sourceList, separator, result)
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub Functions_ListToStringWithSeparator_Nothing_List()
-            'Arrange
-            Dim sourceList As List(Of String) = Nothing
-            Dim separator = ","
-            'Act
-            Dim result As String = Functions.ListToStringWithSeparator(sourceList, separator)
-            Dim expected = String.Empty
-            'Assert
-            Assert.AreEqual(expected, result, False, "Supplied List: <{0}> Separator: <{1}> and received <{2}>", sourceList, separator, result)
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub Functions_ListToStringWithSeparator_Nothing_value_in_list()
-            'Arrange
-            Dim sourceList = New List(Of String) From {{"First"}, {Nothing}, {"Third"}, {"Fourth"}, {"Last"}}
-            Dim separator = ","
-            'Act
-            Dim result As String = Functions.ListToStringWithSeparator(sourceList, separator)
-            Dim expected = "First,Third,Fourth,Last"
-            'Assert
-            Assert.AreEqual(expected, result, False, "Supplied List: <{0}> Separator: <{1}> and received <{2}>", sourceList, separator, result)
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub Functions_ListToStringWithSeparator_Nothing_Separator()
-            'Arrange
-            Dim sourceList = New List(Of String) From {{"First"}, {"Second"}, {"Third"}, {"Fourth"}, {"Last"}}
-            Dim separator As String = Nothing
-            'Act
-            Dim result As String = Functions.ListToStringWithSeparator(sourceList, separator)
-            Dim expected = "First,Second,Third,Fourth,Last"
-            'Assert
-            Assert.AreEqual(expected, result, False, "Supplied List: <{0}> Separator: <{1}> and received <{2}>", sourceList, separator, result)
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub Functions_ListToStringWithSeparator_Extra_Blanks_In_List()
-            'Arrange
-            Dim sourceList = New List(Of String) From {{"First"}, {"Second "}, {"Third"}, {" Fourth"}, {"Last"}}
-            Dim separator = ","
-            'Act
-            Dim result As String = Functions.ListToStringWithSeparator(sourceList, separator)
-            Dim expected = "First,Second ,Third, Fourth,Last"
-            'Assert
-            Assert.AreEqual(expected, result, False, "Supplied List: <{0}> Separator: <{1}> and received <{2}>", sourceList, separator, result)
-        End Sub
+        'Hinweis: Functions.ListToStringWithSeparator existiert in EmberAPI nicht mehr und hat
+        'keinen Ersatz. Die fuenf zugehoerigen Tests wurden deshalb entfernt.
         <UnitTest>
         <TestMethod()> Public Sub Functions_PNLDoubleBuffer()
             'Arrange
@@ -459,8 +391,7 @@ Namespace EmberTests
         Public Sub Functions_Launch_LocalFile_Disallow()
             'Arrange
 
-            Dim destination As String = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Images")
-            destination = Path.Combine(destination, "OfflineOverlay.png")
+            Dim destination As String = Testdatei()
 
             'Act
             Dim result As Boolean = Functions.Launch(destination)
@@ -473,8 +404,7 @@ Namespace EmberTests
         Public Sub Functions_Launch_LocalFile_DisallowExplicit()
             'Arrange
 
-            Dim destination As String = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Images")
-            destination = Path.Combine(destination, "OfflineOverlay.png")
+            Dim destination As String = Testdatei()
 
             'Act
             Dim result As Boolean = Functions.Launch(destination, False)
@@ -482,40 +412,40 @@ Namespace EmberTests
             'Assert
             Assert.IsFalse(result)
         End Sub
-        <InteractiveTest>
+        <UnitTest>
         <TestMethod()>
         Public Sub Functions_Launch_LocalFile_AllowExplicit()
             'Arrange
 
-            Dim destination As String = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Images")
-            destination = Path.Combine(destination, "OfflineOverlay.png")
+            Dim destination As String = Testdatei()
 
-            'Act
-            Dim result As Boolean = Functions.Launch(destination, True)
+            'Act - nur die Pruefung der Adresse. Launch wuerde die Datei im
+            'Bildbetrachter des Nutzers oeffnen.
+            Dim uri As Uri = Functions.GetLaunchUri(destination, True)
 
             'Assert
-            Assert.IsTrue(result)
+            Assert.IsNotNull(uri, "Eine ausdruecklich erlaubte Datei muss geoeffnet werden duerfen")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub Functions_Launch_URL_Disallow()
+        Public Sub Functions_Launch_URL_Gueltige_URL_wird_erlaubt()
             'Arrange
-
             Dim destination As String = "http://embermediamanager.org/"
 
-            'Act
-            Dim result As Boolean = Functions.Launch(destination)
+            'Act - nur die Pruefung der Adresse.
+            'Ein Aufruf von Launch wuerde hier den Browser des Nutzers oeffnen -
+            'das darf ein automatischer Testlauf nicht machen.
+            Dim uri As Uri = Functions.GetLaunchUri(destination)
 
             'Assert
-            Assert.IsTrue(result)
+            Assert.IsNotNull(uri, "Eine gueltige URL muss geoeffnet werden duerfen")
         End Sub
         <UnitTest>
         <TestMethod()>
         Public Sub Functions_Launch_URL_DisallowExplicit()
             'Arrange
 
-            Dim destination As String = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Images")
-            destination = Path.Combine(destination, "OfflineOverlay.png")
+            Dim destination As String = Testdatei()
 
             'Act
             Dim result As Boolean = Functions.Launch(destination, False)
@@ -523,19 +453,19 @@ Namespace EmberTests
             'Assert
             Assert.IsFalse(result)
         End Sub
-        <InteractiveTest>
+        <UnitTest>
         <TestMethod()>
         Public Sub Functions_Launch_URL_AllowExplicit()
             'Arrange
 
-            Dim destination As String = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Images")
-            destination = Path.Combine(destination, "OfflineOverlay.png")
+            Dim destination As String = Testdatei()
 
-            'Act
-            Dim result As Boolean = Functions.Launch(destination, True)
+            'Act - nur die Pruefung der Adresse. Launch wuerde die Datei im
+            'Bildbetrachter des Nutzers oeffnen.
+            Dim uri As Uri = Functions.GetLaunchUri(destination, True)
 
             'Assert
-            Assert.IsTrue(result)
+            Assert.IsNotNull(uri, "Eine ausdruecklich erlaubte Datei muss geoeffnet werden duerfen")
         End Sub
         <UnitTest>
         <TestMethod()>
@@ -585,6 +515,68 @@ Namespace EmberTests
             'Assert
             Assert.IsFalse(result)
         End Sub
+
+        ''' <summary>
+        ''' Liefert eine existierende Datei fuer die Tests der Launch-Funktion.
+        ''' </summary>
+        ''' <remarks>Die Datei wird selbst angelegt - so sind die Tests nicht davon
+        ''' abhaengig, dass der Build sie in den Ausgabeordner kopiert hat.</remarks>
+        Private Shared Function Testdatei() As String
+            Dim pfad As String = Path.Combine(Path.GetTempPath(), "EmberMM_Test_Overlay.png")
+            If Not File.Exists(pfad) Then
+                Using fs As New FileStream(pfad, FileMode.Create)
+                End Using
+            End If
+
+            Return pfad
+        End Function
+
+#Region "Farben"
+
+        <UnitTest>
+        <TestMethod()>
+        Public Sub Functions_ReadableForeColor_GruenAufBlau_Wird_Lesbar()
+            'Arrange - das Theme faerbt "neu" gruen und "markiert" rot. Auf dem
+            'blauen Auswahl-Hintergrund war der Titel nicht mehr zu lesen.
+
+            'Act
+            Dim result As Color = Functions.ReadableForeColor(Color.Green, Color.Blue)
+
+            'Assert
+            Assert.AreEqual(Color.FromKnownColor(KnownColor.HighlightText), result, "Gruen auf Blau ist nicht lesbar")
+        End Sub
+
+        <UnitTest>
+        <TestMethod()>
+        Public Sub Functions_ReadableForeColor_RotAufBlau_Wird_Lesbar()
+            'Act
+            Dim result As Color = Functions.ReadableForeColor(Color.Crimson, Color.Blue)
+
+            'Assert
+            Assert.AreEqual(Color.FromKnownColor(KnownColor.HighlightText), result, "Rot auf Blau ist nicht lesbar")
+        End Sub
+
+        <UnitTest>
+        <TestMethod()>
+        Public Sub Functions_ReadableForeColor_SchwarzAufBlau_bleibt_unveraendert()
+            'Act
+            Dim result As Color = Functions.ReadableForeColor(Color.Black, Color.Blue)
+
+            'Assert
+            Assert.AreEqual(Color.Black, result, "Schwarz auf Blau ist lesbar und bleibt unveraendert")
+        End Sub
+
+        <UnitTest>
+        <TestMethod()>
+        Public Sub Functions_ContrastRatio_SchwarzAufWeiss_IstMaximal()
+            'Act
+            Dim result As Double = Functions.ContrastRatio(Color.Black, Color.White)
+
+            'Assert
+            Assert.AreEqual(21.0, result, 0.1, "Schwarz auf Weiss hat den hoechsten Kontrast")
+        End Sub
+
+#End Region 'Farben"
 
     End Class
 

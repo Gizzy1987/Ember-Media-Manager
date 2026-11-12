@@ -40,6 +40,9 @@ Public Class FileFolderRenamer
     'leer, wenn der Nutzer die Frage abgebrochen hat.
     Private Shared _multiFileModes As New Dictionary(Of String, String)
 
+    'Merkt sich, ob die AdvancedSettings bereits nachgeladen wurden
+    Private Shared _advancedSettingsLoaded As Boolean = False
+
 #End Region 'Fields
 
 #Region "Constructors"
@@ -587,7 +590,16 @@ Public Class FileFolderRenamer
                                                 If Not Directory.Exists(Directory.GetParent(dstFile).FullName) Then
                                                     Directory.CreateDirectory(Directory.GetParent(dstFile).FullName)
                                                 End If
-                                                File.Move(srcFile, dstFile)
+
+                                                'Der Zielname ist bereits vergeben - meist weil eine
+                                                'andere Datei desselben Laufs dort landet. Die Datei
+                                                'wird dann nicht verschoben; ein Fehler waere hier
+                                                'falsch, es wird nur protokolliert.
+                                                If File.Exists(dstFile) Then
+                                                    logger.Info("Target file already exists, file was not renamed: {0} - {1}", srcFile, dstFile)
+                                                Else
+                                                    File.Move(srcFile, dstFile)
+                                                End If
                                             End If
                                         End If
 
@@ -1337,43 +1349,59 @@ Public Class FileFolderRenamer
 
     Public Shared Sub Process_TVEpisode(ByRef EpisodeFile As FileRename, ByVal folderPatternSeasons As String, ByVal filePatternEpisodes As String)
         Try
-            'Mehrfach-Datei-Situation: der Unterepisoden-Anteil darf nicht in den
-            'Dateinamen, sonst entsteht "S01E01.2" zuzueglich Suffix.
-            If Not String.IsNullOrEmpty(EpisodeFile.MultiFileMode) Then SuppressSubEpisode(EpisodeFile)
-
-            Dim pSeason As String = ProccessPattern(EpisodeFile, folderPatternSeasons, True).Trim
-
-            'Staffel 0 wird wie bei tinyMediaManager und Jellyfin im Ordner
-            '"Specials" abgelegt und nicht als "Season 00".
-            If EpisodeFile.SeasonsEpisodes.Any(Function(s) s.Season = 0) Then
-                Dim strSpecials As String = AdvancedSettings.GetSetting("SpecialsFolder", "Specials", MULTIFILE_SECTION, Enums.ContentType.TVSeason)
-                If Not String.IsNullOrEmpty(strSpecials) Then pSeason = strSpecials
-            End If
-
-            EpisodeFile.NewPath = Path.Combine(EpisodeFile.ShowPath, pSeason)
-
-            If Not EpisodeFile.IsVideoTS AndAlso Not EpisodeFile.IsBDMV Then
-                If EpisodeFile.OldFileName.ToLower = "video_ts" Then
-                    EpisodeFile.NewFileName = EpisodeFile.OldFileName
-                Else
-                    EpisodeFile.NewFileName = ProccessPattern(EpisodeFile, filePatternEpisodes, False, EpisodeFile.IsMultiEpisode).Trim
-                End If
-            ElseIf EpisodeFile.IsBDMV Then
-                EpisodeFile.NewFileName = EpisodeFile.OldFileName
-            Else
-                EpisodeFile.NewFileName = EpisodeFile.OldFileName
-            End If
+            ComputeEpisodeTarget(EpisodeFile, folderPatternSeasons, filePatternEpisodes)
 
             'Teile oder Versionen: Suffix an den Dateinamen anhaengen
             ApplyMultiFileSuffix(EpisodeFile)
 
-            Dim newFullFileName As String = Path.Combine(EpisodeFile.BasePath, Path.Combine(EpisodeFile.NewPath, String.Concat(EpisodeFile.NewFileName, EpisodeFile.Extension)))
-            EpisodeFile.FileExist = File.Exists(newFullFileName) AndAlso Not (newFullFileName.ToLower = EpisodeFile.OldFullFileName.ToLower)
-            EpisodeFile.DoRename = Not EpisodeFile.NewPath = EpisodeFile.Path OrElse Not EpisodeFile.NewFileName = EpisodeFile.OldFileName
+            UpdateEpisodeRenameState(EpisodeFile)
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)
             EpisodeFile.DoRename = False
         End Try
+    End Sub
+
+    ''' <summary>
+    ''' Berechnet Zielordner und Basisnamen der Datei (ohne Suffix).
+    ''' </summary>
+    ''' <remarks>Der Basisname wird ohne Suffix berechnet, damit die Zielnamen
+    ''' einer Folge spaeter eindeutig aufgeloest werden koennen.</remarks>
+    Public Shared Sub ComputeEpisodeTarget(ByRef EpisodeFile As FileRename, ByVal folderPatternSeasons As String, ByVal filePatternEpisodes As String)
+        'Mehrfach-Datei-Situation: der Unterepisoden-Anteil darf nicht in den
+        'Dateinamen, sonst entsteht "S01E01.2" zuzueglich Suffix.
+        If Not String.IsNullOrEmpty(EpisodeFile.MultiFileMode) Then SuppressSubEpisode(EpisodeFile)
+
+        Dim pSeason As String = ProccessPattern(EpisodeFile, folderPatternSeasons, True).Trim
+
+        'Staffel 0 wird wie bei tinyMediaManager und Jellyfin im Ordner
+        '"Specials" abgelegt und nicht als "Season 00".
+        If EpisodeFile.SeasonsEpisodes.Any(Function(s) s.Season = 0) Then
+            Dim strSpecials As String = AdvancedSettings.GetSetting("SpecialsFolder", "Specials", MULTIFILE_SECTION, Enums.ContentType.TVSeason)
+            If Not String.IsNullOrEmpty(strSpecials) Then pSeason = strSpecials
+        End If
+
+        EpisodeFile.NewPath = Path.Combine(EpisodeFile.ShowPath, pSeason)
+
+        If Not EpisodeFile.IsVideoTS AndAlso Not EpisodeFile.IsBDMV Then
+            If EpisodeFile.OldFileName.ToLower = "video_ts" Then
+                EpisodeFile.NewFileName = EpisodeFile.OldFileName
+            Else
+                EpisodeFile.NewFileName = ProccessPattern(EpisodeFile, filePatternEpisodes, False, EpisodeFile.IsMultiEpisode).Trim
+            End If
+        ElseIf EpisodeFile.IsBDMV Then
+            EpisodeFile.NewFileName = EpisodeFile.OldFileName
+        Else
+            EpisodeFile.NewFileName = EpisodeFile.OldFileName
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Berechnet die Existenz der Zieldatei und das Umbenennungs-Flag neu.
+    ''' </summary>
+    Public Shared Sub UpdateEpisodeRenameState(ByRef EpisodeFile As FileRename)
+        Dim newFullFileName As String = Path.Combine(EpisodeFile.BasePath, Path.Combine(EpisodeFile.NewPath, String.Concat(EpisodeFile.NewFileName, EpisodeFile.Extension)))
+        EpisodeFile.FileExist = File.Exists(newFullFileName) AndAlso Not (newFullFileName.ToLower = EpisodeFile.OldFullFileName.ToLower)
+        EpisodeFile.DoRename = Not EpisodeFile.NewPath = EpisodeFile.Path OrElse Not EpisodeFile.NewFileName = EpisodeFile.OldFileName
     End Sub
 
     Public Shared Sub Process_TVShow(ByRef ShowFile As FileRename, ByVal folderPatternShows As String)
@@ -1414,6 +1442,61 @@ Public Class FileFolderRenamer
         Try
             For Each f As FileRename In _episodes
                 Process_TVEpisode(f, folderPatternSeasons, filePatternEpisodes)
+            Next
+
+            'Sicherheitsnetz: Dateien, die denselben Zielnamen bekommen wuerden,
+            'werden eindeutig benannt. In diesem Pfad gibt es keine Rueckfrage
+            'des Nutzers, deshalb wird wie bei Versionen nummeriert.
+            ResolveDuplicateTargets(_episodes)
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Sorgt dafuer, dass keine zwei Dateien denselben Zielnamen bekommen.
+    ''' </summary>
+    Private Shared Sub ResolveDuplicateTargets(ByVal files As IList(Of FileRename))
+        Try
+            If files Is Nothing Then Exit Sub
+
+            Dim groups As New Dictionary(Of String, List(Of FileRename))
+
+            For Each f As FileRename In files
+                If f Is Nothing OrElse String.IsNullOrEmpty(f.NewFileName) Then Continue For
+
+                Dim groupKey As String = String.Concat(f.NewPath.ToLower, "|", f.NewFileName.ToLower)
+                If Not groups.ContainsKey(groupKey) Then groups.Add(groupKey, New List(Of FileRename))
+                groups(groupKey).Add(f)
+            Next
+
+            For Each group As List(Of FileRename) In groups.Values
+                'Je Datei eine Zeile - mehrere Datenbankzeilen auf dieselbe Datei
+                'teilen sich den Zielnamen.
+                Dim distinctFiles As List(Of FileRename) = group.GroupBy(Function(x) FileKeyOf(x), StringComparer.OrdinalIgnoreCase).Select(Function(g) g.First()).OrderBy(Function(x) FileKeyOf(x), StringComparer.OrdinalIgnoreCase).ToList()
+                If distinctFiles.Count < 2 Then Continue For
+
+                Dim baseNames As New List(Of String)
+                Dim preferred As New List(Of Integer)
+
+                For Each f As FileRename In distinctFiles
+                    baseNames.Add(f.NewFileName)
+                    preferred.Add(1)
+                Next
+
+                Dim targets As IList(Of BulkRenameTarget) = BulkRenameLogic.ResolveGroupTargets(baseNames, BulkRenameLogic.ModeVersions, preferred,
+                                                                                                      Function(index As Integer, candidate As String) As Boolean
+                                                                                                          Return IsEpisodeTargetTaken(distinctFiles(index), candidate)
+                                                                                                      End Function)
+
+                'Die gefundenen Zielnamen allen Zeilen der Datei zuweisen
+                For Each f As FileRename In group
+                    Dim index As Integer = distinctFiles.FindIndex(Function(d) FileKeyOf(d).Equals(FileKeyOf(f), StringComparison.OrdinalIgnoreCase))
+                    If index < 0 Then Continue For
+
+                    f.NewFileName = targets(index).Name
+                    UpdateEpisodeRenameState(f)
+                Next
             Next
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)
@@ -1888,10 +1971,10 @@ Public Class FileFolderRenamer
 
         'Mehrfach-Datei-Situation: die berechnete Zieldatei existiert bereits
         If MovieFile.FileExist Then
-            Dim mode As String = GetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_MOVIE, MovieFile.ID), MovieFile.Title, Enums.ContentType.Movie)
-            If Not String.IsNullOrEmpty(mode) Then
-                MovieFile.MultiFileMode = mode
-                MovieFile.PartNumber = GetMultiFilePartNumber(MovieFile, mode)
+            Dim decision As MultiFileDecision = GetMultiFileDecision(MultiFileKey(MULTIFILE_PREFIX_MOVIE, MovieFile.ID), MovieFile.Title, Enums.ContentType.Movie, Nothing)
+            If decision IsNot Nothing AndAlso Not String.IsNullOrEmpty(decision.Mode) Then
+                MovieFile.MultiFileMode = decision.Mode
+                MovieFile.PartNumber = GetMultiFilePartNumber(MovieFile, decision.Mode)
                 ApplyMultiFileSuffix(MovieFile)
                 UpdateMovieRenameState(MovieFile)
             End If
@@ -1944,18 +2027,28 @@ Public Class FileFolderRenamer
                 episodeGroups(episodeInfo.GroupKey).Add(episodeInfo)
             Next
 
-            'Frage einmal pro Serie stellen, wenn mehrere Dateien zu derselben Folge gehoeren
-            Dim multiFileMode As String = GetTVShowMultiFileMode(_tmpShow, episodeGroups)
+            'Frage je Folge-Gruppe stellen, wenn mehrere Dateien zu derselben Folge gehoeren
+            Dim decisions As Dictionary(Of String, MultiFileDecision) = GetTVShowMultiFileDecisions(_tmpShow, episodeGroups)
 
+            '1. Durchlauf: Modus, Nummer, Zielordner und Basisnamen bestimmen
+            For Each episodeInfo As EpisodeFileInfo In episodeInfos
+                If episodeGroups.ContainsKey(episodeInfo.GroupKey) AndAlso CountGroupFiles(episodeGroups(episodeInfo.GroupKey)) > 1 Then
+                    SetMultiFileInfo_Episode(episodeInfo, episodeGroups, decisions)
+                End If
+
+                ComputeEpisodeTarget(episodeInfo.File, folderPatternSeasons, filePatternEpisodes)
+            Next
+
+            '2. Durchlauf: Zielnamen innerhalb einer Folge eindeutig machen
+            ResolveEpisodeTargets(episodeGroups, decisions)
+
+            '3. Durchlauf: umbenennen
             For Each episodeInfo As EpisodeFileInfo In episodeInfos
                 Dim EpisodeFile As FileRename = episodeInfo.File
                 Dim tEpisode As Database.DBElement = episodeInfo.Element
 
-                If Not String.IsNullOrEmpty(multiFileMode) Then
-                    SetMultiFileInfo_Episode(episodeInfo, episodeGroups, multiFileMode)
-                End If
+                UpdateEpisodeRenameState(EpisodeFile)
 
-                Process_TVEpisode(EpisodeFile, folderPatternSeasons, filePatternEpisodes)
                 If EpisodeFile.DoRename Then
                     DoRenameSingle_TVEpisode(EpisodeFile, tEpisode, BatchMode, ShowError, False)
 
@@ -2094,6 +2187,9 @@ Public Class FileFolderRenamer
     Private Const MULTIFILE_MODE_PARTS As String = "Parts"
     Private Const MULTIFILE_MODE_VERSIONS As String = "Versions"
 
+    'Die Dateien gehoeren nicht zusammen
+    Private Const MULTIFILE_MODE_NONE As String = "None"
+
     'Zustand, wenn der Nutzer die Frage abgebrochen hat
     Private Const MULTIFILE_STATE_CANCELLED As String = "Cancelled"
 
@@ -2110,6 +2206,15 @@ Public Class FileFolderRenamer
     End Function
 
     ''' <summary>
+    ''' Baut den Schluessel fuer die Antwort einer Gruppe (Serie, Staffel und Folge).
+    ''' </summary>
+    ''' <remarks>Ohne den Gruppenschluessel gilt die Antwort fuer alle Folgen der
+    ''' Serie - dann kann der Nutzer nicht je Folge entscheiden.</remarks>
+    Private Shared Function MultiFileKey(ByVal prefix As String, ByVal id As Long, ByVal groupKey As String) As String
+        Return String.Concat(prefix, "_", id.ToString, "_", groupKey)
+    End Function
+
+    ''' <summary>
     ''' Liefert den bekannten Stand der Antwort, ohne den Nutzer zu fragen.
     ''' </summary>
     ''' <remarks>Zuerst wird der aktuelle Lauf nachgeschlagen, danach die
@@ -2122,14 +2227,46 @@ Public Class FileFolderRenamer
             Return cached
         End If
 
+        EnsureAdvancedSettingsLoaded()
+
         Dim stored As String = AdvancedSettings.GetSetting(key, String.Empty, MULTIFILE_SECTION, contentType)
-        If stored = MULTIFILE_MODE_PARTS OrElse stored = MULTIFILE_MODE_VERSIONS Then
+        If IsKnownMultiFileMode(stored) Then
             _multiFileModes(key) = stored
             Return stored
         End If
 
         Return String.Empty
     End Function
+
+    ''' <summary>
+    ''' Prueft, ob ein gespeicherter Wert eine gueltige Antwort enthaelt.
+    ''' </summary>
+    ''' <remarks>Der Wert kann auch eine Dateiliste enthalten ("Parts|a.mkv|b.mkv"),
+    ''' weil der Nutzer je Gruppe entscheidet, welche Dateien dazugehoeren.</remarks>
+    Private Shared Function IsKnownMultiFileMode(ByVal value As String) As Boolean
+        If String.IsNullOrEmpty(value) Then Return False
+
+        Dim mode As String = value.Split("|"c)(0)
+
+        Return mode = MULTIFILE_MODE_PARTS OrElse mode = MULTIFILE_MODE_VERSIONS OrElse mode = MULTIFILE_MODE_NONE
+    End Function
+
+    ''' <summary>
+    ''' Laedt die AdvancedSettings einmalig nach.
+    ''' </summary>
+    ''' <remarks>Die Datei wird beim Programmstart nicht geladen. Ohne dieses
+    ''' Nachladen waere die gespeicherte Antwort nicht wiederauffindbar und beim
+    ''' Speichern wuerden die uebrigen Einstellungen der Datei verloren gehen.</remarks>
+    Private Shared Sub EnsureAdvancedSettingsLoaded()
+        If _advancedSettingsLoaded Then Exit Sub
+        _advancedSettingsLoaded = True
+
+        Try
+            AdvancedSettings.Start()
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
 
     ''' <summary>
     ''' Liefert die bereits bekannte Antwort, ohne den Nutzer zu fragen.
@@ -2146,26 +2283,68 @@ Public Class FileFolderRenamer
     ''' <param name="key">Schluessel fuer die dauerhafte Ablage</param>
     ''' <param name="displayTitle">Titel des Dialogs (Film- oder Serienname)</param>
     ''' <param name="contentType">Inhaltstyp</param>
-    ''' <param name="affectedItems">Betroffene Folgen oder Filme fuer die Anzeige im Dialog</param>
-    ''' <returns>"Parts", "Versions" oder leer, wenn der Nutzer abgebrochen hat</returns>
-    Private Shared Function GetMultiFileMode(ByVal key As String, ByVal displayTitle As String, ByVal contentType As Enums.ContentType, Optional ByVal affectedItems As IList(Of String) = Nothing) As String
-        If _multiFileModes.ContainsKey(key) Then Return _multiFileModes(key)
+    ''' <param name="groups">Die Gruppen von Dateien, um die es geht</param>
+    ''' <returns>Die Entscheidung des Nutzers oder Nothing, wenn er abgebrochen hat</returns>
+    Private Shared Function GetMultiFileDecision(ByVal key As String, ByVal displayTitle As String, ByVal contentType As Enums.ContentType, ByVal groups As IList(Of MultiFileGroup)) As MultiFileDecision
+        If _multiFileModes.ContainsKey(key) Then
+            Dim cached As String = _multiFileModes(key)
+            If String.IsNullOrEmpty(cached) Then Return Nothing
+
+            Return BulkRenameLogic.DecodeDecision(key, cached)
+        End If
 
         Dim known As String = GetKnownMultiFileMode(key, contentType)
-        If Not String.IsNullOrEmpty(known) Then Return known
+        If Not String.IsNullOrEmpty(known) Then Return BulkRenameLogic.DecodeDecision(key, known)
 
         'Der Dialog wird auch im Renamer-Thread (BackgroundWorker) aufgerufen.
-        Using dlg As New dlgMultiFileQuestion(displayTitle, affectedItems, contentType = Enums.ContentType.TVShow)
-            Dim mode As String = String.Empty
-            If dlg.ShowDialog() = DialogResult.OK Then
-                mode = If(dlg.IsParts, MULTIFILE_MODE_PARTS, MULTIFILE_MODE_VERSIONS)
+        Using dlg As New dlgMultiFileQuestion(displayTitle, groups, isTV:=(contentType = Enums.ContentType.TVShow))
+            Dim decision As MultiFileDecision = Nothing
+            If dlg.ShowDialog() = DialogResult.OK AndAlso dlg.Decisions.Count > 0 Then
+                decision = dlg.Decisions(0)
             End If
 
-            _multiFileModes(key) = mode
-            If Not String.IsNullOrEmpty(mode) Then SaveMultiFileMode(key, mode, contentType)
-            Return mode
+            If decision Is Nothing Then
+                'Als abgebrochen merken, damit in diesem Lauf nicht erneut gefragt wird
+                _multiFileModes(key) = String.Empty
+                Return Nothing
+            End If
+
+            SetMultiFileDecision(key, decision, contentType)
+            Return decision
         End Using
     End Function
+
+    ''' <summary>
+    ''' Setzt die Antwort fuer ein Element und speichert sie dauerhaft.
+    ''' </summary>
+    ''' <remarks>Die Dateiauswahl wird mit gespeichert - sonst waere beim
+    ''' naechsten Lauf nicht mehr bekannt, welche Dateien zusammengehoeren.</remarks>
+    Private Shared Sub SetMultiFileDecision(ByVal key As String, ByVal decision As MultiFileDecision, ByVal contentType As Enums.ContentType)
+        If decision Is Nothing Then Exit Sub
+
+        _multiFileModes(key) = BulkRenameLogic.EncodeDecision(decision)
+        SaveMultiFileDecision(key, decision, contentType)
+    End Sub
+
+    ''' <summary>
+    ''' Schreibt die Entscheidung einer Gruppe dauerhaft ab.
+    ''' </summary>
+    Private Shared Sub SaveMultiFileDecision(ByVal key As String, ByVal decision As MultiFileDecision, ByVal contentType As Enums.ContentType)
+        If decision Is Nothing Then Exit Sub
+
+        Try
+            EnsureAdvancedSettingsLoaded()
+
+            Using settings As New AdvancedSettings()
+                settings.SetSetting(key, BulkRenameLogic.EncodeDecision(decision), MULTIFILE_SECTION, False, contentType)
+                'SetSetting aendert nur den Speicher - ohne diesen Aufruf ist die
+                'Antwort beim naechsten Start wieder vergessen.
+                settings.SaveSettings()
+            End Using
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
 
     ''' <summary>
     ''' Setzt die Antwort fuer ein Element und speichert sie dauerhaft.
@@ -2180,6 +2359,8 @@ Public Class FileFolderRenamer
     ''' </summary>
     Private Shared Sub SaveMultiFileMode(ByVal key As String, ByVal mode As String, ByVal contentType As Enums.ContentType)
         Try
+            EnsureAdvancedSettingsLoaded()
+
             Using settings As New AdvancedSettings()
                 settings.SetSetting(key, mode, MULTIFILE_SECTION, False, contentType)
                 'SetSetting aendert nur den Speicher - ohne diesen Aufruf ist die
@@ -2195,18 +2376,8 @@ Public Class FileFolderRenamer
     ''' Liefert das Suffix fuer Teile oder Versionen.
     ''' </summary>
     Private Shared Function GetMultiFileSuffix(ByVal mode As String, ByVal partNumber As Integer) As String
-        If String.IsNullOrEmpty(mode) OrElse partNumber < 1 Then Return String.Empty
-
-        If mode = MULTIFILE_MODE_PARTS Then
-            'Teile eines Ganzen: auch die erste Datei bekommt "-part-1"
-            Return String.Concat("-part-", partNumber.ToString)
-        ElseIf mode = MULTIFILE_MODE_VERSIONS Then
-            'Versionen: die erste Datei behaelt den Basisnamen
-            If partNumber < 2 Then Return String.Empty
-            Return String.Concat(" - ", partNumber.ToString)
-        End If
-
-        Return String.Empty
+        'Die Logik liegt in BulkRenameLogic, damit sie getestet werden kann
+        Return BulkRenameLogic.GetMultiFileSuffix(mode, partNumber)
     End Function
 
     ''' <summary>
@@ -2300,35 +2471,134 @@ Public Class FileFolderRenamer
     End Function
 
     ''' <summary>
-    ''' Prueft, ob zu einer Folge der Serie mehrere Dateien gehoeren.
+    ''' Holt die Entscheidung des Nutzers fuer jede Folge mit mehreren Dateien.
     ''' </summary>
-    ''' <returns>Der Modus ("Parts" oder "Versions") oder leer, wenn es keine
-    ''' Mehrfach-Datei-Situation gibt oder der Nutzer abgebrochen hat</returns>
-    Private Shared Function GetTVShowMultiFileMode(ByVal _tmpShow As Database.DBElement, ByVal episodeGroups As Dictionary(Of String, List(Of EpisodeFileInfo))) As String
-        Try
-            'Gehoeren mehrere Dateien zu derselben Folge?
-            Dim hasMultipleFiles As Boolean = episodeGroups.Values.Any(Function(g) g.Select(Function(i) i.File.OldFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count > 1)
-            If Not hasMultipleFiles Then Return String.Empty
+    ''' <remarks>
+    ''' Die Entscheidung gilt je Folge-Gruppe, nicht fuer die ganze Serie. So
+    ''' kann der Nutzer bei der einen Folge "Teile eines Ganzes" waehlen und bei
+    ''' der anderen "Verschiedene Versionen" - oder eine Datei aus der Gruppe
+    ''' herausnehmen, weil sie gar nicht dazugehoert.
+    '''
+    ''' Sind fuer alle Gruppen schon Antworten gespeichert, wird nicht mehr
+    ''' gefragt. Sonst zeigt der Dialog alle Gruppen und die bekannten Antworten
+    ''' sind vorbelegt.
+    ''' </remarks>
+    Private Shared Function GetTVShowMultiFileDecisions(ByVal _tmpShow As Database.DBElement, ByVal episodeGroups As Dictionary(Of String, List(Of EpisodeFileInfo))) As Dictionary(Of String, MultiFileDecision)
+        Dim decisions As New Dictionary(Of String, MultiFileDecision)
 
+        Try
             Dim showTitle As String = String.Empty
             If _tmpShow.TVShow IsNot Nothing AndAlso _tmpShow.TVShow.TitleSpecified Then showTitle = _tmpShow.TVShow.Title
 
-            'Die betroffenen Folgen auflisten, damit der Nutzer sieht, worum es geht
-            Dim affected As New List(Of String)
-            For Each group In episodeGroups.Values.Where(Function(g) g.Select(Function(i) i.File.OldFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count > 1)
-                Dim first = group.FirstOrDefault()
-                If first IsNot Nothing AndAlso first.Element IsNot Nothing AndAlso first.Element.TVEpisode IsNot Nothing Then
-                    Dim ep = first.Element.TVEpisode
-                    Dim label As String = String.Format("S{0:00}E{1:00}", ep.Season, ep.Episode)
-                    If ep.TitleSpecified AndAlso Not String.IsNullOrEmpty(ep.Title) Then
-                        label = String.Concat(label, " - ", ep.Title)
-                    End If
-                    If Not affected.Contains(label) Then affected.Add(label)
+            'Die Gruppen sammeln
+            Dim multiGroups As New List(Of MultiFileGroup)
+            For Each group As List(Of EpisodeFileInfo) In episodeGroups.Values
+                If CountGroupFiles(group) < 2 Then Continue For
+
+                Dim distinctFiles As List(Of EpisodeFileInfo) = DistinctFilesOf(group)
+
+                'Gehoeren die Dateien wirklich zur selben Folge? Die Datenbank kann
+                'aus einem Scan mit einer aelteren Version eine falsche Folge
+                'enthalten, in der die Dateien mehrerer Folgen liegen.
+                Dim episodeKeys As New List(Of String)
+                For Each item As EpisodeFileInfo In distinctFiles
+                    episodeKeys.Add(DetectEpisodeKeyOf(item.File))
+                Next
+
+                If Not BulkRenameLogic.IsSingleEpisode(episodeKeys) Then
+                    logger.Info(String.Format("[BulkRename] Die Dateien der Gruppe {0} gehoeren zu verschiedenen Folgen - sie werden nicht zusammengefasst", group.First.GroupKey))
+                    Continue For
+                End If
+
+                Dim multiGroup As New MultiFileGroup With {
+                    .GroupKey = group.First.GroupKey,
+                    .Label = GroupLabelOf(group)
+                }
+
+                For Each item As EpisodeFileInfo In distinctFiles
+                    multiGroup.Files.Add(New MultiFileFile With {.FileKey = FileKeyOf(item.File), .FileName = item.File.OldFileName})
+                Next
+
+                multiGroups.Add(multiGroup)
+            Next
+
+            If multiGroups.Count = 0 Then Return decisions
+
+            'Eine frueher gespeicherte Antwort fuer die ganze Serie gilt als Vorgabe
+            Dim showDefault As String = GetKnownMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_TVSHOW, _tmpShow.ShowID), Enums.ContentType.TVShow)
+
+            'Bekannte Antworten uebernehmen
+            Dim allKnown As Boolean = True
+            For Each multiGroup As MultiFileGroup In multiGroups
+                Dim stored As String = GetMultiFileModeState(MultiFileKey(MULTIFILE_PREFIX_TVSHOW, _tmpShow.ShowID, multiGroup.GroupKey), Enums.ContentType.TVShow)
+                If String.IsNullOrEmpty(stored) Then
+                    allKnown = False
+                Else
+                    decisions(multiGroup.GroupKey) = BulkRenameLogic.DecodeDecision(multiGroup.GroupKey, stored)
                 End If
             Next
-            affected.Sort()
 
-            Return GetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_TVSHOW, _tmpShow.ShowID), showTitle, Enums.ContentType.TVShow, affected)
+            If allKnown Then Return decisions
+
+            'Der Dialog zeigt alle Gruppen - die bekannten Antworten sind vorbelegt
+            Using dlg As New dlgMultiFileQuestion(showTitle, multiGroups, isTV:=True, knownDecisions:=decisions)
+                If dlg.ShowDialog() = DialogResult.OK Then
+                    For Each decision As MultiFileDecision In dlg.Decisions
+                        decisions(decision.GroupKey) = decision
+                        SaveMultiFileDecision(MultiFileKey(MULTIFILE_PREFIX_TVSHOW, _tmpShow.ShowID, decision.GroupKey), decision, Enums.ContentType.TVShow)
+                    Next
+                End If
+            End Using
+
+            'Fuer Gruppen ohne Antwort gilt der Rueckfall: die Dateien bekommen
+            'eindeutige Namen, aber kein "-part-1".
+            For Each multiGroup As MultiFileGroup In multiGroups
+                If decisions.ContainsKey(multiGroup.GroupKey) Then Continue For
+
+                Dim fallback As New MultiFileDecision With {.GroupKey = multiGroup.GroupKey, .Mode = BulkRenameLogic.ModeVersions, .AllFiles = True}
+                If Not String.IsNullOrEmpty(showDefault) Then fallback.Mode = BulkRenameLogic.DecodeDecision(multiGroup.GroupKey, showDefault).Mode
+
+                decisions.Add(multiGroup.GroupKey, fallback)
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+
+        Return decisions
+    End Function
+
+    ''' <summary>
+    ''' Liefert die verschiedenen Dateien einer Gruppe (je Datei nur einen Eintrag).
+    ''' </summary>
+    Private Shared Function DistinctFilesOf(ByVal group As List(Of EpisodeFileInfo)) As List(Of EpisodeFileInfo)
+        If group Is Nothing Then Return New List(Of EpisodeFileInfo)
+
+        Return group.GroupBy(Function(i) FileKeyOf(i.File), StringComparer.OrdinalIgnoreCase).
+                      Select(Function(g) g.First()).
+                      OrderBy(Function(i) FileKeyOf(i.File), StringComparer.OrdinalIgnoreCase).ToList()
+    End Function
+
+    ''' <summary>
+    ''' Ermittelt die Folge einer Datei anhand ihres Namens.
+    ''' </summary>
+    ''' <returns>"Staffel|Folge" oder leer, wenn die Datei nicht zugeordnet werden konnte</returns>
+    ''' <remarks>Wird benutzt, um zu pruefen, ob die Dateien einer Gruppe wirklich
+    ''' zur selben Folge gehoeren. Ohne diese Pruefung koennte eine falsche Folge
+    ''' aus einem alten Scan die Dateien mehrerer Folgen zusammenfassen.</remarks>
+    Private Shared Function DetectEpisodeKeyOf(ByVal f As FileRename) As String
+        If f Is Nothing Then Return String.Empty
+
+        Dim path As String = f.OldFullFileName
+        If String.IsNullOrEmpty(path) Then path = f.OldFileName
+        If String.IsNullOrEmpty(path) Then Return String.Empty
+
+        Try
+            Dim matches As List(Of Scanner.EpisodeItem) = Scanner.GetTVEpisodeMatches(path, Master.eSettings.TVShowMatching, Master.eSettings.TVMultiPartMatching)
+
+            'Nur bei genau einem Treffer ist die Datei eindeutig
+            If matches Is Nothing OrElse matches.Count <> 1 Then Return String.Empty
+
+            Return String.Concat(matches(0).Season.ToString, "|", matches(0).Episode.ToString)
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name)
             Return String.Empty
@@ -2336,34 +2606,165 @@ Public Class FileFolderRenamer
     End Function
 
     ''' <summary>
+    ''' Baut die Anzeige einer Folge-Gruppe (Staffel, Folge und Titel).
+    ''' </summary>
+    Private Shared Function GroupLabelOf(ByVal group As List(Of EpisodeFileInfo)) As String
+        Dim season As Integer = -1
+        Dim episode As Integer = -1
+        Dim dbTitle As String = String.Empty
+
+        For Each item As EpisodeFileInfo In group
+            If item.Element Is Nothing OrElse item.Element.TVEpisode Is Nothing Then Continue For
+
+            season = item.Element.TVEpisode.Season
+            episode = item.Element.TVEpisode.Episode
+            If item.Element.TVEpisode.TitleSpecified AndAlso Not String.IsNullOrEmpty(item.Element.TVEpisode.Title) Then dbTitle = item.Element.TVEpisode.Title
+            Exit For
+        Next
+
+        Return BulkRenameLogic.BuildGroupLabel(season, episode, dbTitle)
+    End Function
+
+    ''' <summary>
+    ''' Zaehlt die verschiedenen Dateien einer Folge.
+    ''' </summary>
+    ''' <remarks>Gezählt werden die Dateien, nicht die Datenbankzeilen. Mehrere
+    ''' Zeilen, die auf dieselbe Datei zeigen, sind nur eine Datei.</remarks>
+    Private Shared Function CountGroupFiles(ByVal group As List(Of EpisodeFileInfo)) As Integer
+        If group Is Nothing Then Return 0
+
+        Return group.Select(Function(i) FileKeyOf(i.File)).Distinct(StringComparer.OrdinalIgnoreCase).Count
+    End Function
+
+    ''' <summary>
+    ''' Liefert den Schluessel, unter dem eine Datei gefuehrt wird.
+    ''' </summary>
+    Private Shared Function FileKeyOf(ByVal f As FileRename) As String
+        If f Is Nothing Then Return String.Empty
+        If Not String.IsNullOrEmpty(f.OldFullFileName) Then Return f.OldFullFileName
+        Return f.OldFileName
+    End Function
+
+    ''' <summary>
     ''' Setzt Modus und Nummer der Datei innerhalb ihrer Gruppe.
     ''' </summary>
-    Private Shared Sub SetMultiFileInfo_Episode(ByRef info As EpisodeFileInfo, ByVal episodeGroups As Dictionary(Of String, List(Of EpisodeFileInfo)), ByVal mode As String)
+    ''' <remarks>Die Nummer wird je Datei vergeben: mehrere Datenbankzeilen, die auf
+    ''' dieselbe Datei zeigen, bekommen dieselbe Nummer. Zaehlt man nach dem
+    ''' Dateinamen, koennten zwei verschiedene Dateien (gleicher Name, andere
+    ''' Endung oder anderer Ordner) dieselbe Nummer und damit denselben
+    ''' Zielnamen bekommen.
+    '''
+    ''' Nur die Dateien, die der Nutzer zur Gruppe gezaehlt hat, bekommen ein
+    ''' Suffix. Die uebrigen bleiben ohne - sie gehoeren ja nicht zur Gruppe.</remarks>
+    Private Shared Sub SetMultiFileInfo_Episode(ByRef info As EpisodeFileInfo, ByVal episodeGroups As Dictionary(Of String, List(Of EpisodeFileInfo)), ByVal decisions As Dictionary(Of String, MultiFileDecision))
         If Not episodeGroups.ContainsKey(info.GroupKey) Then Exit Sub
 
         Dim group As List(Of EpisodeFileInfo) = episodeGroups(info.GroupKey)
 
+        Dim decision As MultiFileDecision = Nothing
+        If decisions IsNot Nothing Then decisions.TryGetValue(info.GroupKey, decision)
+        If decision Is Nothing Then Exit Sub
+
         'Nur Folgen, zu denen mehrere Dateien gehoeren, bekommen einen Suffix.
         'Eine einzelne Datei pro Folge bleibt ohne "-part-1" o.ae.
-        If group.Select(Function(i) i.File.OldFileName).Distinct(StringComparer.OrdinalIgnoreCase).Count < 2 Then Exit Sub
+        Dim ordered As List(Of EpisodeFileInfo) = DistinctFilesOf(group).
+            Where(Function(i) BulkRenameLogic.IsFileSelected(decision, FileKeyOf(i.File))).
+            ToList()
 
-        Dim number As Integer = 0
-        Dim lastFileName As String = String.Empty
+        If ordered.Count < 2 Then Exit Sub
 
-        For Each item As EpisodeFileInfo In group.OrderBy(Function(i) i.File.OldFileName, StringComparer.OrdinalIgnoreCase)
-            'Dateien, die mehrfach in der Gruppe stehen, bekommen dieselbe Nummer
-            If Not item.File.OldFileName.Equals(lastFileName, StringComparison.OrdinalIgnoreCase) Then
-                number += 1
-                lastFileName = item.File.OldFileName
-            End If
+        Dim numbers As IList(Of Integer) = BulkRenameLogic.AssignPartNumbers(ordered.Select(Function(i) FileKeyOf(i.File)).ToList())
 
-            If item.File.ID = info.File.ID Then
-                info.File.MultiFileMode = mode
-                info.File.PartNumber = number
+        For index As Integer = 0 To ordered.Count - 1
+            If FileKeyOf(ordered(index).File).Equals(FileKeyOf(info.File), StringComparison.OrdinalIgnoreCase) Then
+                info.File.MultiFileMode = decision.Mode
+                info.File.PartNumber = numbers(index)
                 Exit For
             End If
         Next
     End Sub
+
+    ''' <summary>
+    ''' Sorgt dafuer, dass innerhalb einer Folge keine zwei Dateien denselben
+    ''' Zielnamen bekommen.
+    ''' </summary>
+    ''' <remarks>Dieser Schritt laeuft immer - auch wenn der Nutzer die Frage
+    ''' abgebrochen hat. Ein abgebrochener Dialog fuehrt sonst dazu, dass alle
+    ''' Dateien einer Folge denselben Zielnamen berechnen und sich gegenseitig
+    ''' im Weg stehen.</remarks>
+    Private Shared Sub ResolveEpisodeTargets(ByVal episodeGroups As Dictionary(Of String, List(Of EpisodeFileInfo)), ByVal decisions As Dictionary(Of String, MultiFileDecision))
+        Try
+            For Each group As List(Of EpisodeFileInfo) In episodeGroups.Values
+                'Nur Folgen mit mehreren Dateien sind betroffen
+                If CountGroupFiles(group) < 2 Then Continue For
+
+                Dim decision As MultiFileDecision = Nothing
+                If decisions IsNot Nothing Then decisions.TryGetValue(group.First.GroupKey, decision)
+
+                'Je Datei eine Zeile - mehrere Datenbankzeilen auf dieselbe Datei
+                'teilen sich den Zielnamen.
+                Dim distinctFiles As List(Of EpisodeFileInfo) = DistinctFilesOf(group)
+
+                Dim fileKeys As New List(Of String)
+                Dim baseNames As New List(Of String)
+
+                For Each item As EpisodeFileInfo In distinctFiles
+                    fileKeys.Add(FileKeyOf(item.File))
+                    baseNames.Add(item.File.NewFileName)
+                Next
+
+                'Nur die ausgewaehlten Dateien bekommen das Suffix des Modus
+                Dim targets As IList(Of BulkRenameTarget) = BulkRenameLogic.ResolveGroupTargetsBySelection(fileKeys, baseNames, decision,
+                                                                                                                  Function(index As Integer, candidate As String) As Boolean
+                                                                                                                      Return IsEpisodeTargetTaken(distinctFiles(index).File, candidate)
+                                                                                                                  End Function)
+
+                'Die gefundenen Zielnamen allen Zeilen der Datei zuweisen
+                For Each item As EpisodeFileInfo In group
+                    Dim index As Integer = distinctFiles.FindIndex(Function(d) FileKeyOf(d.File).Equals(FileKeyOf(item.File), StringComparison.OrdinalIgnoreCase))
+                    If index < 0 Then Continue For
+
+                    item.File.NewFileName = targets(index).Name
+                    item.File.PartNumber = targets(index).PartNumber
+                    UpdateEpisodeRenameState(item.File)
+                Next
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Prueft, ob der Zielname im Zielordner schon vergeben ist.
+    ''' </summary>
+    ''' <remarks>Die Datei selbst und ihre Begleitdateien (NFO, Poster, ...) sind
+    ''' kein Konflikt - sie werden mit umbenannt.</remarks>
+    Private Shared Function IsEpisodeTargetTaken(ByVal f As FileRename, ByVal candidate As String) As Boolean
+        If f Is Nothing OrElse String.IsNullOrEmpty(candidate) Then Return False
+
+        Try
+            Dim targetDir As String = Path.Combine(f.BasePath, f.NewPath)
+            If Not Directory.Exists(targetDir) Then Return False
+
+            Dim sourceDir As String = Path.Combine(f.BasePath, f.Path)
+
+            For Each fi As FileInfo In New DirectoryInfo(targetDir).GetFiles()
+                If Not Path.GetFileNameWithoutExtension(fi.Name).Equals(candidate, StringComparison.OrdinalIgnoreCase) Then Continue For
+
+                'Die Datei selbst ist kein Konflikt
+                If fi.FullName.Equals(f.OldFullFileName, StringComparison.OrdinalIgnoreCase) Then Continue For
+
+                'Begleitdateien der Datei ebenfalls nicht
+                If fi.DirectoryName.Equals(sourceDir, StringComparison.OrdinalIgnoreCase) AndAlso fi.Name.StartsWith(f.OldFileName, StringComparison.OrdinalIgnoreCase) Then Continue For
+
+                Return True
+            Next
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+
+        Return False
+    End Function
 
     ''' <summary>
     ''' Sucht Filme, die denselben Zielnamen bekommen, und benennt sie um.
@@ -2382,7 +2783,7 @@ Public Class FileFolderRenamer
                 Dim ordered As List(Of FileRename) = group.OrderBy(Function(x) x.OldFileName, StringComparer.OrdinalIgnoreCase).ToList()
 
                 'Antwort der Gruppe ermitteln: bekannte Antwort oder eine Frage
-                Dim mode As String = String.Empty
+                Dim decision As MultiFileDecision = Nothing
                 Dim cancelled As Boolean = False
 
                 For Each f As FileRename In ordered
@@ -2391,18 +2792,29 @@ Public Class FileFolderRenamer
                         cancelled = True
                         Exit For
                     ElseIf Not String.IsNullOrEmpty(state) Then
-                        mode = state
+                        decision = BulkRenameLogic.DecodeDecision(MultiFileKey(MULTIFILE_PREFIX_MOVIE, f.ID), state)
                     End If
                 Next
 
-                If Not cancelled AndAlso String.IsNullOrEmpty(mode) Then
-                    Dim affected As New List(Of String)
-                    If Not String.IsNullOrEmpty(ordered.First.Title) Then affected.Add(ordered.First.Title)
-                    mode = GetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_MOVIE, ordered.First.ID), ordered.First.Title, Enums.ContentType.Movie, affected)
+                If Not cancelled AndAlso decision Is Nothing Then
+                    'Der Dialog zeigt die Dateien des Films - der Nutzer sieht damit,
+                    'welche Dateien er zusammenfasst oder trennen will.
+                    Dim multiGroup As New MultiFileGroup With {
+                        .GroupKey = ordered.First.ID.ToString,
+                        .Label = If(String.IsNullOrEmpty(ordered.First.Title), ordered.First.OldFileName, ordered.First.Title)
+                    }
+                    For Each f As FileRename In ordered
+                        multiGroup.Files.Add(New MultiFileFile With {.FileKey = FileKeyOf(f), .FileName = f.OldFileName})
+                    Next
+
+                    Dim movieGroups As New List(Of MultiFileGroup)
+                    movieGroups.Add(multiGroup)
+
+                    decision = GetMultiFileDecision(MultiFileKey(MULTIFILE_PREFIX_MOVIE, ordered.First.ID), ordered.First.Title, Enums.ContentType.Movie, movieGroups)
                 End If
 
                 'Nutzer hat abgebrochen: fuer diese Filme wird nichts umbenannt
-                If cancelled OrElse String.IsNullOrEmpty(mode) Then
+                If cancelled OrElse decision Is Nothing Then
                     For Each f As FileRename In ordered
                         Dim key As String = MultiFileKey(MULTIFILE_PREFIX_MOVIE, f.ID)
                         If String.IsNullOrEmpty(GetMultiFileModeState(key, Enums.ContentType.Movie)) Then
@@ -2415,20 +2827,32 @@ Public Class FileFolderRenamer
 
                 'Die Antwort gilt fuer alle Filme der Gruppe
                 For Each f As FileRename In ordered
-                    SetMultiFileMode(MultiFileKey(MULTIFILE_PREFIX_MOVIE, f.ID), mode, Enums.ContentType.Movie)
+                    SetMultiFileDecision(MultiFileKey(MULTIFILE_PREFIX_MOVIE, f.ID), decision, Enums.ContentType.Movie)
                 Next
 
-                Dim number As Integer = 0
-                Dim lastFileName As String = String.Empty
+                'Die Nummer wird nur unter den Dateien vergeben, die der Nutzer zur
+                'Gruppe gezaehlt hat. Die uebrigen behalten ihren Namen.
+                Dim fileKeys As New List(Of String)
                 For Each f As FileRename In ordered
-                    If Not f.OldFileName.Equals(lastFileName, StringComparison.OrdinalIgnoreCase) Then
-                        number += 1
-                        lastFileName = f.OldFileName
+                    fileKeys.Add(FileKeyOf(f))
+                Next
+
+                Dim numbers As IList(Of Integer) = BulkRenameLogic.AssignPartNumbersBySelection(fileKeys, decision)
+
+                'Bei "getrennt lassen" bekommen die Dateien keinen Zusatz - die
+                'Namen muessen aber trotzdem eindeutig bleiben.
+                Dim mode As String = decision.Mode
+                If String.IsNullOrEmpty(mode) OrElse mode = BulkRenameLogic.ModeNone Then mode = BulkRenameLogic.ModeVersions
+
+                For index As Integer = 0 To ordered.Count - 1
+                    Dim f As FileRename = ordered(index)
+
+                    If numbers(index) > 0 Then
+                        f.MultiFileMode = mode
+                        f.PartNumber = numbers(index)
+                        ApplyMultiFileSuffix(f)
                     End If
 
-                    f.MultiFileMode = mode
-                    f.PartNumber = number
-                    ApplyMultiFileSuffix(f)
                     UpdateMovieRenameState(f)
                 Next
             Next
@@ -2612,3 +3036,487 @@ Public Class FileFolderRenamer
 #End Region 'Nested Types
 
 End Class
+
+#Region "Testbare Mehrfach-Datei-Logik"
+
+''' <summary>
+''' Eine Gruppe von Dateien, die zu derselben Folge oder demselben Film gehoeren.
+''' </summary>
+Public Class MultiFileGroup
+
+#Region "Properties"
+
+    ''' <summary>
+    ''' Schluessel der Gruppe (bei Serien die Staffel und die Folge).
+    ''' </summary>
+    Public Property GroupKey() As String = String.Empty
+
+    ''' <summary>
+    ''' Die Anzeige der Gruppe im Dialog (z.B. "S05E23 - Das Netz der Angst").
+    ''' </summary>
+    Public Property Label() As String = String.Empty
+
+    ''' <summary>
+    ''' Die Dateien der Gruppe.
+    ''' </summary>
+    Public Property Files() As List(Of MultiFileFile) = New List(Of MultiFileFile)
+
+#End Region 'Properties
+
+End Class
+
+''' <summary>
+''' Eine Datei einer Mehrfach-Datei-Gruppe.
+''' </summary>
+Public Class MultiFileFile
+
+#Region "Properties"
+
+    ''' <summary>
+    ''' Der Schluessel der Datei (voller Pfad) - damit wird sie wiedergefunden.
+    ''' </summary>
+    Public Property FileKey() As String = String.Empty
+
+    ''' <summary>
+    ''' Der Dateiname fuer die Anzeige im Dialog.
+    ''' </summary>
+    Public Property FileName() As String = String.Empty
+
+#End Region 'Properties
+
+End Class
+
+''' <summary>
+''' Die Entscheidung des Nutzers fuer eine Gruppe von Dateien.
+''' </summary>
+Public Class MultiFileDecision
+
+#Region "Properties"
+
+    ''' <summary>
+    ''' Schluessel der Gruppe, zu der die Entscheidung gehoert.
+    ''' </summary>
+    Public Property GroupKey() As String = String.Empty
+
+    ''' <summary>
+    ''' "Parts", "Versions" oder "None" (getrennt lassen).
+    ''' </summary>
+    Public Property Mode() As String = BulkRenameLogic.ModeNone
+
+    ''' <summary>
+    ''' Die Dateien, die der Nutzer zur Gruppe gezaehlt hat.
+    ''' </summary>
+    ''' <remarks>Ist die Liste leer, gehoeren alle Dateien der Gruppe dazu - so
+    ''' bleiben auch frueher gespeicherte Antworten ("Parts") gueltig. Damit der
+    ''' Nutzer aber auch alle Dateien abwaehlen kann, gibt es das Kennzeichen
+    ''' AllFiles: erst dann bedeutet eine leere Liste "keine Datei".</remarks>
+    Public Property SelectedFiles() As IList(Of String) = New List(Of String)
+
+    ''' <summary>
+    ''' True, wenn alle Dateien der Gruppe dazugehoeren.
+    ''' </summary>
+    Public Property AllFiles() As Boolean = False
+
+#End Region 'Properties
+
+End Class
+
+''' <summary>
+''' Ein Zielname einer Datei innerhalb einer Mehrfach-Datei-Gruppe.
+''' </summary>
+Public Class BulkRenameTarget
+
+#Region "Properties"
+
+    ''' <summary>
+    ''' Der Zielname der Datei (ohne Pfad und ohne Dateiendung).
+    ''' </summary>
+    Public Property Name() As String = String.Empty
+
+    ''' <summary>
+    ''' Die Nummer der Datei innerhalb ihrer Gruppe (1-basiert).
+    ''' </summary>
+    Public Property PartNumber() As Integer = 0
+
+#End Region 'Properties
+
+End Class
+
+''' <summary>
+''' Enthaelt die reine Logik der Mehrfach-Datei-Behandlung des BulkRename-Addons.
+''' </summary>
+''' <remarks>Die Logik ist bewusst frei von Datenbank- und Oberflaechenbezug,
+''' damit sie einzeln getestet werden kann.</remarks>
+Public Class BulkRenameLogic
+
+#Region "Konstanten"
+
+    'Moegliche Behandlungen von Mehrfach-Dateien
+    Public Const ModeParts As String = "Parts"
+    Public Const ModeVersions As String = "Versions"
+
+    'Die Dateien gehoeren nicht zusammen - sie bekommen kein Suffix
+    Public Const ModeNone As String = "None"
+
+#End Region 'Konstanten
+
+#Region "Methods"
+
+    ''' <summary>
+    ''' Baut die Anzeige einer betroffenen Folge fuer den Dialog.
+    ''' </summary>
+    ''' <remarks>Der echte Dateiname steht voran - nur so kann der Nutzer die Dateien
+    ''' wirklich unterscheiden. Der Titel aus der Datenbank steht lediglich als
+    ''' Zusatz dahinter.</remarks>
+    Public Shared Function BuildEpisodeLabel(ByVal season As Integer, ByVal episode As Integer, ByVal fileName As String, ByVal dbTitle As String) As String
+        Dim label As String = String.Format("S{0:00}E{1:00}", season, episode)
+
+        If Not String.IsNullOrEmpty(fileName) Then label = String.Concat(label, " - ", fileName)
+        If Not String.IsNullOrEmpty(dbTitle) Then label = String.Concat(label, " (DB: ", dbTitle, ")")
+
+        Return label
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob alle Dateien einer Gruppe zu derselben Folge gehoeren.
+    ''' </summary>
+    ''' <param name="episodeKeys">Die aus dem Dateinamen erkannten Folgen ("Staffel|Folge")</param>
+    ''' <remarks>Ein leerer Schluessel bedeutet "nicht erkannt". Solange keine Datei
+    ''' erkannt wurde, bleibt die Datenbank massgeblich. Sobald aber zwei
+    ''' verschiedene Folgen erkannt werden, sind es verschiedene Folgen - dann
+    ''' kann es keine Mehrfach-Datei-Gruppe sein.
+    '''
+    ''' Der Fall tritt auf, wenn die Datenbank aus einem Scan mit einer aelteren
+    ''' Version stammt: dort wurden aus einem Aufloesungsmarker ("E1080") zusaetzliche
+    ''' Folgen erzeugt, und alle Dateien einer Staffel landeten in einer davon.
+    ''' </remarks>
+    Public Shared Function IsSingleEpisode(ByVal episodeKeys As IList(Of String)) As Boolean
+        If episodeKeys Is Nothing Then Return True
+
+        Dim found As String = String.Empty
+        For Each key As String In episodeKeys
+            If String.IsNullOrEmpty(key) Then Continue For
+
+            If String.IsNullOrEmpty(found) Then
+                found = key
+            ElseIf Not String.Equals(found, key, StringComparison.OrdinalIgnoreCase) Then
+                Return False
+            End If
+        Next
+
+        Return True
+    End Function
+
+    ''' <summary>
+    ''' Vergibt die Nummern der Dateien einer Gruppe - nur fuer die ausgewaehlten.
+    ''' </summary>
+    ''' <param name="fileKeys">Die Schluessel der Dateien der Gruppe</param>
+    ''' <param name="decision">Die Entscheidung des Nutzers fuer diese Gruppe</param>
+    ''' <returns>Je Datei ihre Nummer innerhalb der Gruppe. 0 heisst: die Datei
+    ''' gehoert nicht zur Gruppe und bekommt kein Suffix.</returns>
+    Public Shared Function AssignPartNumbersBySelection(ByVal fileKeys As IList(Of String), ByVal decision As MultiFileDecision) As IList(Of Integer)
+        Dim result As New List(Of Integer)
+        If fileKeys Is Nothing Then Return result
+
+        Dim numbers As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+        Dim nextNumber As Integer = 0
+
+        For Each key As String In fileKeys
+            Dim fileKey As String = If(key Is Nothing, String.Empty, key)
+            Dim number As Integer = 0
+
+            If IsFileSelected(decision, fileKey) Then
+                If Not numbers.ContainsKey(fileKey) Then
+                    nextNumber += 1
+                    numbers.Add(fileKey, nextNumber)
+                End If
+                number = numbers(fileKey)
+            End If
+
+            result.Add(number)
+        Next
+
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' Baut die Anzeige einer Gruppe von Dateien fuer den Dialog.
+    ''' </summary>
+    ''' <remarks>Anders als bei den einzelnen Dateien steht hier der Titel der
+    ''' Folge in der Anzeige - die Dateien darunter gehoeren zu dieser Folge.</remarks>
+    Public Shared Function BuildGroupLabel(ByVal season As Integer, ByVal episode As Integer, ByVal dbTitle As String) As String
+        Dim label As String = String.Format("S{0:00}E{1:00}", season, episode)
+
+        If Not String.IsNullOrEmpty(dbTitle) Then label = String.Concat(label, " - ", dbTitle)
+
+        Return label
+    End Function
+
+    ''' <summary>
+    ''' Packt die Entscheidung des Nutzers in einen String.
+    ''' </summary>
+    ''' <remarks>Format: "Modus|*" fuer alle Dateien oder "Modus|Datei1|Datei2"
+    ''' fuer die Dateien, die der Nutzer ausgewaehlt hat.</remarks>
+    Public Shared Function EncodeDecision(ByVal decision As MultiFileDecision) As String
+        If decision Is Nothing Then Return String.Empty
+
+        Dim result As New List(Of String)
+        result.Add(If(String.IsNullOrEmpty(decision.Mode), ModeNone, decision.Mode))
+
+        If decision.AllFiles Then
+            result.Add("*")
+        ElseIf decision.SelectedFiles IsNot Nothing Then
+            For Each file As String In decision.SelectedFiles
+                If Not String.IsNullOrEmpty(file) Then result.Add(file)
+            Next
+        End If
+
+        Return String.Join("|", result.ToArray())
+    End Function
+
+    ''' <summary>
+    ''' Liest die Entscheidung des Nutzers aus einem String.
+    ''' </summary>
+    Public Shared Function DecodeDecision(ByVal groupKey As String, ByVal value As String) As MultiFileDecision
+        Dim decision As New MultiFileDecision With {.GroupKey = groupKey}
+
+        If String.IsNullOrEmpty(value) Then Return decision
+
+        Dim parts As String() = value.Split("|"c)
+        If parts.Length > 0 Then
+            If parts(0) = ModeParts OrElse parts(0) = ModeVersions OrElse parts(0) = ModeNone Then decision.Mode = parts(0)
+        End If
+
+        'Keine Dateiliste: die Antwort gilt fuer alle Dateien der Gruppe
+        If parts.Length < 2 Then
+            decision.AllFiles = True
+            Return decision
+        End If
+
+        If parts(1) = "*" Then
+            decision.AllFiles = True
+            Return decision
+        End If
+
+        For index As Integer = 1 To parts.Length - 1
+            If Not String.IsNullOrEmpty(parts(index)) Then decision.SelectedFiles.Add(parts(index))
+        Next
+
+        Return decision
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob eine Datei zu der vom Nutzer gewaehlten Gruppe gehoert.
+    ''' </summary>
+    ''' <remarks>Eine Antwort ohne Auswahl des Nutzers gilt fuer alle Dateien -
+    ''' so bleiben frueher gespeicherte Antworten gueltig. Hat der Nutzer alle
+    ''' Dateien abgewahlt, gehoert keine Datei zur Gruppe.</remarks>
+    Public Shared Function IsFileSelected(ByVal decision As MultiFileDecision, ByVal fileKey As String) As Boolean
+        If decision Is Nothing Then Return False
+        If decision.AllFiles Then Return True
+        If decision.SelectedFiles Is Nothing Then Return False
+
+        For Each selected As String In decision.SelectedFiles
+            If String.Equals(selected, fileKey, StringComparison.OrdinalIgnoreCase) Then Return True
+        Next
+
+        Return False
+    End Function
+
+    ''' <summary>
+    ''' Ermittelt fuer jede Datei einer Gruppe einen eindeutigen Zielnamen.
+    ''' </summary>
+    ''' <param name="fileKeys">Die Schluessel der Dateien der Gruppe</param>
+    ''' <param name="baseNames">Die Basisnamen (ohne Suffix) der Dateien der Gruppe</param>
+    ''' <param name="decision">Die Entscheidung des Nutzers fuer diese Gruppe</param>
+    ''' <param name="isTaken">Prueft, ob ein Zielname schon vergeben ist</param>
+    ''' <remarks>
+    ''' Nur die vom Nutzer ausgewaehlten Dateien bekommen das Suffix des Modus
+    ''' ("-part-1", "-part-2" oder " - 2"). Die uebrigen Dateien bleiben ohne
+    ''' Suffix - sie gehoeren ja nicht zur Gruppe. Nur wenn zwei Namen
+    ''' kollidieren, wird auch dort eine Nummer angehaengt.
+    ''' </remarks>
+    Public Shared Function ResolveGroupTargetsBySelection(ByVal fileKeys As IList(Of String), ByVal baseNames As IList(Of String), ByVal decision As MultiFileDecision, ByVal isTaken As Func(Of Integer, String, Boolean)) As IList(Of BulkRenameTarget)
+        Dim result As New List(Of BulkRenameTarget)
+        If baseNames Is Nothing Then Return result
+
+        'Die Nummer wird nur unter den ausgewaehlten Dateien vergeben
+        Dim numbers As New Dictionary(Of Integer, Integer)
+        Dim nextNumber As Integer = 0
+        For index As Integer = 0 To baseNames.Count - 1
+            If IsFileSelected(decision, FileKeyAt(fileKeys, index)) Then
+                nextNumber += 1
+                numbers.Add(index, nextNumber)
+            End If
+        Next
+
+        Dim used As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        Dim groupMode As String = If(decision Is Nothing, String.Empty, decision.Mode)
+
+        For index As Integer = 0 To baseNames.Count - 1
+            Dim baseName As String = If(baseNames(index) Is Nothing, String.Empty, baseNames(index))
+
+            Dim mode As String = ModeVersions
+            Dim number As Integer = 1
+
+            'Nur wenn mindestens zwei Dateien ausgewaehlt sind, bekommen sie ein
+            'Suffix - eine einzelne Datei bleibt ohne "-part-1".
+            If numbers.ContainsKey(index) AndAlso numbers.Count > 1 Then
+                mode = groupMode
+                number = numbers(index)
+            End If
+
+            'Ohne Modus (getrennt lassen) gibt es kein Suffix
+            If String.IsNullOrEmpty(mode) OrElse mode = ModeNone Then mode = ModeVersions
+
+            'Solange die Nummer hochzaehlen, bis ein freier Name gefunden ist
+            Dim target As String = String.Empty
+            Do
+                Dim candidate As String = String.Concat(baseName, GetMultiFileSuffix(mode, number))
+
+                If Not used.Contains(candidate) AndAlso Not IsNameTaken(isTaken, index, candidate) Then
+                    target = candidate
+                    Exit Do
+                End If
+
+                number += 1
+            Loop While number <= 1000
+
+            'Sollte es wider Erwarten keinen freien Namen geben, wird der Name
+            'mit einer laufenden Nummer versehen - doppelte Namen sind ausgeschlossen.
+            If String.IsNullOrEmpty(target) Then target = String.Concat(baseName, " (", (index + 1).ToString, ")")
+
+            used.Add(target)
+            result.Add(New BulkRenameTarget With {.Name = target, .PartNumber = number})
+        Next
+
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' Liefert den Schluessel der Datei an der angegebenen Stelle.
+    ''' </summary>
+    Private Shared Function FileKeyAt(ByVal fileKeys As IList(Of String), ByVal index As Integer) As String
+        If fileKeys Is Nothing Then Return String.Empty
+        If index < 0 OrElse index >= fileKeys.Count Then Return String.Empty
+
+        Return If(fileKeys(index) Is Nothing, String.Empty, fileKeys(index))
+    End Function
+
+    ''' <summary>
+    ''' Liefert das Suffix fuer Teile oder Versionen.
+    ''' </summary>
+    Public Shared Function GetMultiFileSuffix(ByVal mode As String, ByVal partNumber As Integer) As String
+        If String.IsNullOrEmpty(mode) OrElse partNumber < 1 Then Return String.Empty
+
+        If mode = ModeParts Then
+            'Teile eines Ganzen: auch die erste Datei bekommt "-part-1"
+            Return String.Concat("-part-", partNumber.ToString)
+        ElseIf mode = ModeVersions Then
+            'Versionen: die erste Datei behaelt den Basisnamen
+            If partNumber < 2 Then Return String.Empty
+            Return String.Concat(" - ", partNumber.ToString)
+        End If
+
+        Return String.Empty
+    End Function
+
+    ''' <summary>
+    ''' Vergibt die Nummern der Dateien innerhalb einer Gruppe.
+    ''' </summary>
+    ''' <remarks>Gezählt werden die Dateien, nicht die Datenbankzeilen: mehrere Zeilen,
+    ''' die auf dieselbe Datei zeigen, bekommen dieselbe Nummer. Wuerde man nach dem
+    ''' Dateinamen zaehlen, koennten zwei verschiedene Dateien dieselbe Nummer und
+    ''' damit denselben Zielnamen bekommen.</remarks>
+    Public Shared Function AssignPartNumbers(ByVal fileKeys As IList(Of String)) As IList(Of Integer)
+        Dim result As New List(Of Integer)
+        If fileKeys Is Nothing Then Return result
+
+        Dim numbers As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+        Dim nextNumber As Integer = 0
+
+        For Each key As String In fileKeys
+            Dim fileKey As String = If(key Is Nothing, String.Empty, key)
+
+            If Not numbers.ContainsKey(fileKey) Then
+                nextNumber += 1
+                numbers.Add(fileKey, nextNumber)
+            End If
+
+            result.Add(numbers(fileKey))
+        Next
+
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' Ermittelt fuer jede Datei einer Gruppe einen eindeutigen Zielnamen.
+    ''' </summary>
+    ''' <param name="baseNames">Die Basisnamen (ohne Suffix) der Dateien der Gruppe</param>
+    ''' <param name="mode">"Parts", "Versions" oder leer (Dialog abgebrochen)</param>
+    ''' <param name="preferredNumbers">Die gewuenschten Nummern der Dateien</param>
+    ''' <param name="isTaken">Prueft, ob ein Zielname schon vergeben ist</param>
+    ''' <remarks>Ohne Modus (Dialog abgebrochen) werden die Dateien wie Versionen
+    ''' behandelt - nur so entstehen auch dann eindeutige Zielnamen.</remarks>
+    Public Shared Function ResolveGroupTargets(ByVal baseNames As IList(Of String), ByVal mode As String, ByVal preferredNumbers As IList(Of Integer), ByVal isTaken As Func(Of Integer, String, Boolean)) As IList(Of BulkRenameTarget)
+        Dim result As New List(Of BulkRenameTarget)
+        If baseNames Is Nothing Then Return result
+
+        'Ohne Modus gibt es kein Suffix - dann waeren die Ziele nicht eindeutig.
+        'Als Rueckfall werden die Dateien deshalb wie Versionen behandelt.
+        Dim effectiveMode As String = mode
+        If String.IsNullOrEmpty(effectiveMode) AndAlso baseNames.Count > 1 Then effectiveMode = ModeVersions
+
+        Dim used As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
+        For index As Integer = 0 To baseNames.Count - 1
+            Dim baseName As String = If(baseNames(index) Is Nothing, String.Empty, baseNames(index))
+
+            Dim preferred As Integer = 1
+            If preferredNumbers IsNot Nothing AndAlso index < preferredNumbers.Count Then preferred = preferredNumbers(index)
+            If preferred < 1 Then preferred = 1
+
+            Dim number As Integer = preferred
+            Dim target As String = String.Empty
+
+            'Solange die Nummer hochzaehlen, bis ein freier Name gefunden ist
+            Do
+                Dim candidate As String = String.Concat(baseName, GetMultiFileSuffix(effectiveMode, number))
+
+                If Not used.Contains(candidate) AndAlso Not IsNameTaken(isTaken, index, candidate) Then
+                    target = candidate
+                    Exit Do
+                End If
+
+                number += 1
+            Loop While number <= preferred + 1000
+
+            'Sollte es wider Erwarten keinen freien Namen geben, wird der Name
+            'mit einer laufenden Nummer versehen - doppelte Namen sind ausgeschlossen.
+            If String.IsNullOrEmpty(target) Then target = String.Concat(baseName, " (", (index + 1).ToString, ")")
+
+            used.Add(target)
+            result.Add(New BulkRenameTarget With {.Name = target, .PartNumber = number})
+        Next
+
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' Ruft die Pruefung auf einen bereits vergebenen Zielnamen auf.
+    ''' </summary>
+    Private Shared Function IsNameTaken(ByVal isTaken As Func(Of Integer, String, Boolean), ByVal index As Integer, ByVal candidate As String) As Boolean
+        If isTaken Is Nothing Then Return False
+
+        Try
+            Return isTaken(index, candidate)
+        Catch ex As Exception
+            Return False
+        End Try
+    End Function
+
+#End Region 'Methods
+
+End Class
+
+#End Region 'Testbare Mehrfach-Datei-Logik"

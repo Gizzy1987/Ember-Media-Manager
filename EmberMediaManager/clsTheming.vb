@@ -419,6 +419,18 @@ Public Class XMLTheme
 
 #End Region 'Properties
 
+        ''' <summary>
+        ''' Liefert die Textfarbe fuer eine ausgewaehlte Zelle - immer lesbar.
+        ''' </summary>
+        ''' <remarks>
+        ''' Manche Theme-Farben sind auf dem Auswahl-Hintergrund nicht lesbar -
+        ''' gruen auf blau zum Beispiel. Deshalb wird der Kontrast geprueft und
+        ''' notfalls die Systemfarbe fuer markierten Text genommen.
+        ''' </remarks>
+        Public Function ReadableSelectionColor() As Color
+            Return Functions.ReadableForeColor(SelectionForeColor, SelectionBackColor)
+        End Function
+
     End Class
 
     Public Class TopPanelSettings

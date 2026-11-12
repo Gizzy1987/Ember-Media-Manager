@@ -782,6 +782,22 @@ Public Class Scanner
                     cEpisode.TVEpisode = NFO.LoadFromNFO_TVEpisode(cEpisode.NfoPath, sEpisode.Season, sEpisode.Episode)
                 End If
 
+                'Widerspruch zwischen der Nummer aus dem Dateinamen und der Nummer aus der NFO-Datei aufloesen.
+                'Die Nummer aus dem Dateinamen gewinnt, damit die Datei nicht einer falschen Folge zugeordnet wird.
+                If HasEpisodeNumberConflict(sEpisode.Episode, cEpisode.TVEpisode.Episode) Then
+                    cEpisode.TVEpisode.Episode = ResolveEpisodeNumber(sEpisode.Episode, cEpisode.TVEpisode.Episode, cEpisode.Filename)
+
+                    'Der Titel aus der NFO-Datei gehoert in diesem Fall zu einer anderen Folge und wird nur
+                    'verworfen, wenn er nicht zum Titel aus dem Dateinamen passt.
+                    If cEpisode.TVEpisode.TitleSpecified Then
+                        Dim strFileTitle As String = StringUtils.FilterTitleFromPath_TVEpisode(cEpisode.Filename, cEpisode.TVShow.Title)
+                        If Not IsNFOTitleConsistent(strFileTitle, cEpisode.TVEpisode.Title) Then
+                            logger.Trace(String.Format("[Scanner] [Load_TVEpisode] NFO-Konflikt: '{0}' - der Titel '{1}' aus der NFO-Datei passt nicht zum Dateinamen und wird verworfen.", cEpisode.Filename, cEpisode.TVEpisode.Title))
+                            cEpisode.TVEpisode.Title = String.Empty
+                        End If
+                    End If
+                End If
+
                 If Not cEpisode.TVEpisode.FileInfoSpecified AndAlso cEpisode.TVEpisode.TitleSpecified AndAlso Master.eSettings.TVScraperMetaDataScan Then
                     MediaInfo.UpdateTVMediaInfo(cEpisode)
                 End If
@@ -1167,6 +1183,91 @@ Public Class Scanner
         Return -1
     End Function
 
+    ''' <summary>
+    ''' Prueft, ob eine Zahl eine gaengige Aufloesung ist und deshalb nicht als
+    ''' Folgen- oder Teile-Nummer gelesen werden darf.
+    ''' </summary>
+    Public Shared Function IsResolutionNumber(ByVal number As Integer) As Boolean
+        Select Case number
+            Case 2160, 1440, 1080, 720, 576, 540, 480, 360, 240
+                Return True
+            Case Else
+                Return False
+        End Select
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob eine gefundene Zahl eine Aufloesung oder ein Codec ist.
+    ''' </summary>
+    ''' <param name="prefixChar">Das Zeichen direkt vor der Zahl</param>
+    ''' <param name="number">Die gefundene Zahl</param>
+    ''' <param name="textFromNumber">Der Text ab der Zahl ("1080p.mkv", "2.mp4")</param>
+    ''' <remarks>
+    ''' Ein Aufloesungsmarker klebt direkt an der Zahl ("S05E23E1080", "1080p")
+    ''' oder der Codec steht davor ("x264"). Solche Zahlen sind keine Folgen- und
+    ''' keine Teile-Nummern - sie wuerden sonst eine zusaetzliche Folge erzeugen.
+    '''
+    ''' Beispiel aus der Bibliothek: "tv4a-doctorwho.s05e23-1080p.mkv". Ohne diese
+    ''' Pruefung wird daraus die zweite Folge "S05E1080".
+    ''' </remarks>
+    Public Shared Function IsQualityNumber(ByVal prefixChar As Char, ByVal number As Integer, ByVal textFromNumber As String) As Boolean
+        'Codec (x264, x265, h264, h265)
+        If (prefixChar = "x"c OrElse prefixChar = "X"c OrElse prefixChar = "h"c OrElse prefixChar = "H"c) AndAlso (number = 264 OrElse number = 265) Then Return True
+
+        'Aufloesung (1080, 720, ...)
+        If Not IsResolutionNumber(number) Then Return False
+
+        'Der Marker steht direkt vor der Zahl ("E1080", "x1080")
+        If prefixChar = "e"c OrElse prefixChar = "E"c OrElse prefixChar = "x"c OrElse prefixChar = "X"c Then Return True
+
+        'Die Zahl traegt ein "p" oder "i" ("1080p", "1080i")
+        If IsResolutionSuffix(textFromNumber) Then Return True
+
+        Return False
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob ab der gefundenen Zahl eine Aufloesung folgt ("1080p", "1080i").
+    ''' </summary>
+    ''' <remarks>Das "p" wird von den Suchmustern nicht mit erfasst - es steht im
+    ''' Rest hinter der Zahl. Deshalb wird der Text ab der Zahl geprueft.
+    ''' Nach dem "p" darf kein Buchstabe mehr folgen, sonst waere es keine
+    ''' Aufloesung ("2part" ist eine Teile-Nummer, "1080p.mkv" eine Aufloesung).</remarks>
+    Public Shared Function IsResolutionSuffix(ByVal textFromNumber As String) As Boolean
+        If String.IsNullOrEmpty(textFromNumber) Then Return False
+
+        Return Regex.IsMatch(textFromNumber, "^[0-9]+[pi](?![a-z0-9])", RegexOptions.IgnoreCase)
+    End Function
+
+    ''' <summary>
+    ''' Liefert das Zeichen, das direkt vor der gefundenen Zahl steht.
+    ''' </summary>
+    Private Shared Function PrefixCharOf(ByVal text As String, ByVal index As Integer) As Char
+        If text Is Nothing Then Return " "c
+        If index <= 0 OrElse index > text.Length Then Return " "c
+
+        Return text(index - 1)
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob die in einem Treffer gefundene Folge in Wahrheit eine
+    ''' Aufloesung oder ein Codec ist.
+    ''' </summary>
+    Private Shared Function IsQualityEpisode(ByVal match As Match, ByVal source As String, ByVal eItem As EpisodeItem) As Boolean
+        If eItem Is Nothing OrElse eItem.Episode < 1 Then Return False
+
+        'Die Nummer steht in Gruppe 2 - nur wenn sie leer ist, wird Gruppe 1 benutzt
+        Dim groupIndex As Integer = If(String.IsNullOrEmpty(match.Groups(2).Value), 1, 2)
+
+        Dim numberStart As Integer = match.Groups(groupIndex).Index
+        If numberStart < 0 OrElse numberStart > source.Length Then Return False
+
+        Dim prefixChar As Char = PrefixCharOf(source, numberStart)
+        Dim textFromNumber As String = source.Substring(numberStart)
+
+        Return IsQualityNumber(prefixChar, eItem.Episode, textFromNumber)
+    End Function
+
     Private Shared Function RegexGetSeasonAndEpisodeNumber(ByVal reg As Match, ByRef eItem As EpisodeItem, ByVal defaultSeason As Integer) As Boolean
         Dim tSeason As String = reg.Groups(1).Value
         Dim tEpisode As String = reg.Groups(2).Value
@@ -1227,9 +1328,23 @@ Public Class Scanner
     End Function
 
     Public Shared Function RegexGetTVEpisode(ByVal sPath As String, ByVal ShowID As Long) As List(Of EpisodeItem)
+        Return GetTVEpisodeMatches(sPath, Master.eSettings.TVShowMatching, Master.eSettings.TVMultiPartMatching)
+    End Function
+
+    ''' <summary>
+    ''' Sucht die Staffel- und Folgenangaben in einem Dateinamen.
+    ''' </summary>
+    ''' <remarks>
+    ''' Die Muster werden uebergeben und nicht aus den Einstellungen gelesen. So
+    ''' haengt die Erkennung nicht an Master (Settings, Datenbank) und kann
+    ''' isoliert getestet werden.
+    ''' </remarks>
+    Public Shared Function GetTVEpisodeMatches(ByVal sPath As String, ByVal showMatching As IList(Of Settings.regexp), ByVal multiPartMatching As String) As List(Of EpisodeItem)
         Dim retEpisodeItemsList As New List(Of EpisodeItem)
 
-        For Each rShow As Settings.regexp In Master.eSettings.TVShowMatching
+        If showMatching Is Nothing Then Return retEpisodeItemsList
+
+        For Each rShow As Settings.regexp In showMatching
             Dim reg As Regex = New Regex(rShow.Regexp, RegexOptions.IgnoreCase)
 
             Dim regexppos As Integer
@@ -1257,8 +1372,11 @@ Public Class Scanner
                 ' as second run might modify or empty it.
                 Dim remainder As String = sMatch.Groups(3).Value.ToString
 
-                If Not String.IsNullOrEmpty(Master.eSettings.TVMultiPartMatching) Then
-                    Dim reg2 As Regex = New Regex(Master.eSettings.TVMultiPartMatching, RegexOptions.IgnoreCase)
+                'Die Staffel der ersten Folge - eine Teile-Nummer gehoert immer dazu
+                Dim primarySeason As Integer = eItem.Season
+
+                If Not String.IsNullOrEmpty(multiPartMatching) Then
+                    Dim reg2 As Regex = New Regex(multiPartMatching, RegexOptions.IgnoreCase)
 
                     ' check the remainder of the string for any further episodes.
                     If Not rShow.byDate Then
@@ -1277,26 +1395,33 @@ Public Class Scanner
                             regexppos = If(reg.IsMatch(remainder), reg.Match(remainder).Index, -1)
                             regexp2pos = If(reg2.IsMatch(remainder), reg2.Match(remainder).Index, -1)
                             If (regexppos <= regexp2pos AndAlso regexppos <> -1) OrElse (regexppos >= 0 AndAlso regexp2pos = -1) Then
+                                Dim sRemainderMatch As Match = reg.Match(remainder)
                                 eItem = New EpisodeItem
-                                If Not RegexGetSeasonAndEpisodeNumber(reg.Match(remainder), eItem, defaultSeason) Then
+                                If Not RegexGetSeasonAndEpisodeNumber(sRemainderMatch, eItem, defaultSeason) Then
                                     logger.Warn(String.Format("[Scanner] [RegexGetTVEpisode] Can't get a proper season and episode number for multipart file {0} [{1}]", sPath, rShow.Regexp))
+                                ElseIf IsQualityEpisode(sRemainderMatch, remainder, eItem) Then
+                                    'Aufloesung oder Codec ("E1080", "1080p", "x264") - keine zweite Folge
+                                    logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Ignoring resolution marker in file {0} [{1}]", sPath, rShow.Regexp))
                                 Else
                                     retEpisodeItemsList.Add(eItem)
                                     logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Adding new season {0}, multipart episode {1} [{2}]", eItem.Season, eItem.Episode, rShow.Regexp))
                                 End If
                                 'no progress -> abort instead of looping endlessly
-                                Dim newRemainder As String = reg.Match(remainder).Groups(3).Value
+                                Dim newRemainder As String = sRemainderMatch.Groups(3).Value
                                 If newRemainder.Length >= remainder.Length Then Exit While
                                 remainder = newRemainder
                             ElseIf (regexp2pos < regexppos AndAlso regexp2pos <> -1) OrElse (regexp2pos >= 0 AndAlso regexppos = -1) Then
                                 Dim endPattern As String = String.Empty
-                                eItem = New EpisodeItem With {.Season = eItem.Season}
-                                Dim Episode As Match = Regex.Match(reg2.Match(remainder).Groups(1).Value, "(\d*)(.*)")
+                                Dim sPartMatch As Match = reg2.Match(remainder)
+                                Dim Episode As Match = Regex.Match(sPartMatch.Groups(1).Value, "(\d*)(.*)")
                                 Dim iEpisode As Integer = 0
                                 If Not Integer.TryParse(Episode.Groups(1).Value, iEpisode) Then
-                                    logger.Warn(String.Format("[Scanner] [RegexGetTVEpisode] Can't get a proper episode number for multipart file {0} [{1}]", sPath, Master.eSettings.TVMultiPartMatching))
+                                    logger.Warn(String.Format("[Scanner] [RegexGetTVEpisode] Can't get a proper episode number for multipart file {0} [{1}]", sPath, multiPartMatching))
                                     Exit While
                                 End If
+
+                                'Eine Teile-Nummer gehoert immer zur ersten Folge der Datei
+                                eItem = New EpisodeItem With {.Season = primarySeason}
                                 eItem.Episode = iEpisode
                                 If Not String.IsNullOrEmpty(Episode.Groups(2).Value) Then endPattern = Episode.Groups(2).Value
 
@@ -1304,9 +1429,19 @@ Public Class Scanner
                                     eItem.SubEpisode = GetSubEpisodeNumber(endPattern)
                                 End If
 
-                                retEpisodeItemsList.Add(eItem)
-                                logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Adding multipart episode {0} [{1}]", eItem.Episode, Master.eSettings.TVMultiPartMatching))
-                                remainder = remainder.Substring(reg2.Match(remainder).Length)
+                                'Aufloesung oder Codec ("E1080", "1080p", "x264") - keine Teile-Nummer
+                                Dim numberStart As Integer = sPartMatch.Groups(1).Index
+                                Dim textFromNumber As String = String.Empty
+                                If numberStart >= 0 AndAlso numberStart <= remainder.Length Then textFromNumber = remainder.Substring(numberStart)
+
+                                If IsQualityNumber(PrefixCharOf(remainder, numberStart), iEpisode, textFromNumber) Then
+                                    logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Ignoring resolution marker in file {0} [{1}]", sPath, rShow.Regexp))
+                                Else
+                                    retEpisodeItemsList.Add(eItem)
+                                    logger.Info(String.Format("[Scanner] [RegexGetTVEpisode] Adding multipart episode {0} [{1}]", eItem.Episode, multiPartMatching))
+                                End If
+
+                                remainder = remainder.Substring(sPartMatch.Length)
                                 If remainder.Length >= oldRemainder.Length Then Exit While
                             Else
                                 'nothing matched -> no progress possible
@@ -1322,6 +1457,92 @@ Public Class Scanner
 
         Return retEpisodeItemsList
     End Function
+
+    ''' <summary>
+    ''' Aufloesung von Konflikten zwischen der Episodennummer aus dem Dateinamen und der
+    ''' Episodennummer aus der NFO-Datei.
+    ''' </summary>
+    ''' <remarks>
+    ''' Die Funktionen greifen bewusst nicht auf Master (Settings, DB) zu, damit sie
+    ''' isoliert getestet werden koennen.
+    ''' </remarks>
+#Region "NFO-Konfliktaufloesung"
+
+    ''' <summary>
+    ''' Prueft, ob die Episodennummer aus dem Dateinamen und die Episodennummer aus der
+    ''' NFO-Datei widersprechen.
+    ''' </summary>
+    ''' <param name="filenameNumber">Episodennummer aus dem Dateinamen (-1 = unbekannt)</param>
+    ''' <param name="nfoNumber">Episodennummer aus der NFO-Datei (-1 = unbekannt)</param>
+    ''' <returns>True, wenn sich beide Nummern widersprechen</returns>
+    Public Shared Function HasEpisodeNumberConflict(ByVal filenameNumber As Integer, ByVal nfoNumber As Integer) As Boolean
+        Return filenameNumber >= 0 AndAlso nfoNumber >= 0 AndAlso Not filenameNumber = nfoNumber
+    End Function
+
+    ''' <summary>
+    ''' Bestimmt die zu verwendende Episodennummer einer TV-Episode.
+    ''' </summary>
+    ''' <param name="filenameNumber">Episodennummer aus dem Dateinamen (-1 = unbekannt)</param>
+    ''' <param name="nfoNumber">Episodennummer aus der NFO-Datei (-1 = unbekannt)</param>
+    ''' <param name="filePath">Pfad der Videodatei (wird fuer die Protokollierung benutzt)</param>
+    ''' <returns>Die zu verwendende Episodennummer</returns>
+    ''' <remarks>
+    ''' Widersprechen sich beide Nummern, gewinnt die Nummer aus dem Dateinamen. Nur so wird
+    ''' verhindert, dass eine NFO-Datei mit falscher Nummer mehrere Dateien einer Folge
+    ''' zusammenfasst (Befundbericht vom 10.11.2026, Doctor Who). Der Widerspruch wird
+    ''' auf TRACE-Ebene protokolliert.
+    ''' </remarks>
+    Public Shared Function ResolveEpisodeNumber(ByVal filenameNumber As Integer, ByVal nfoNumber As Integer, ByVal filePath As String) As Integer
+        If Not HasEpisodeNumberConflict(filenameNumber, nfoNumber) Then
+            'Kein Widerspruch - die NFO-Datei bestimmt die Nummer, sonst der Dateiname
+            If nfoNumber >= 0 Then Return nfoNumber
+            Return filenameNumber
+        End If
+
+        logger.Trace(String.Format("[Scanner] [ResolveEpisodeNumber] NFO-Konflikt: '{0}' - die Nummer aus dem Dateinamen ({1}) weicht von der Nummer aus der NFO-Datei ({2}) ab. Es wird die Nummer aus dem Dateinamen verwendet.", filePath, filenameNumber, nfoNumber))
+
+        Return filenameNumber
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob der Titel aus der NFO-Datei zum Titel aus dem Dateinamen passt.
+    ''' </summary>
+    ''' <param name="filenameTitle">Folgentitel aus dem Dateinamen (ohne Sendungsname und ohne Nummer)</param>
+    ''' <param name="nfoTitle">Titel aus der NFO-Datei</param>
+    ''' <returns>True, wenn der Titel aus der NFO-Datei verwendet werden darf</returns>
+    ''' <remarks>
+    ''' Die Ablehnung ist bewusst zurueckhaltend: nur wenn der Dateiname einen eigenen
+    ''' Folgentitel mitbringt und dieser vom Titel aus der NFO-Datei abweicht, gilt der
+    ''' Titel als Widerspruch. Im Zweifel wird der Titel aus der NFO-Datei behalten.
+    ''' </remarks>
+    Public Shared Function IsNFOTitleConsistent(ByVal filenameTitle As String, ByVal nfoTitle As String) As Boolean
+        If String.IsNullOrEmpty(nfoTitle) Then Return True
+
+        'Der Folgentitel wird ohne die Nummerangabe aus dem Dateinamen verglichen
+        Dim strFileTitle As String = RemoveEpisodeNumberFromTitle(filenameTitle)
+
+        'Der Dateiname enthaelt keinen Folgentitel - es gibt nichts zu vergleichen
+        If String.IsNullOrEmpty(strFileTitle) Then Return True
+
+        Return StringUtils.IsTitleMatch(strFileTitle, nfoTitle)
+    End Function
+
+    ''' <summary>
+    ''' Entfernt eine Nummerangabe wie "S07E13" aus einem Titel und ueberfluessige Trennzeichen.
+    ''' </summary>
+    ''' <param name="title">Titel, z.B. der Folgentitel aus einem Dateinamen</param>
+    ''' <returns>Der Titel ohne Nummerangabe und ohne fuehrende oder abschliessende Trennzeichen</returns>
+    Public Shared Function RemoveEpisodeNumberFromTitle(ByVal title As String) As String
+        If String.IsNullOrEmpty(title) Then Return String.Empty
+
+        Dim strResult As String = Regex.Replace(title, "\bs\d{1,2}\s*e\d{1,3}\b", " ", RegexOptions.IgnoreCase)
+        strResult = Regex.Replace(strResult, "[\s\-_.,:]+$", String.Empty)
+        strResult = Regex.Replace(strResult, "^[\s\-_.,:]+", String.Empty)
+
+        Return strResult.Trim
+    End Function
+
+#End Region 'NFO-Konfliktaufloesung
 
     ''' <summary>
     ''' Find all related files in a directory.

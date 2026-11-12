@@ -66,7 +66,7 @@ Partial Class dlgIMDBSearchResults_Movie
         '
         Me.OK_Button.Enabled = False
         Me.OK_Button.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.OK_Button.Location = New System.Drawing.Point(501, 431)
+        Me.OK_Button.Location = New System.Drawing.Point(501, 455)
         Me.OK_Button.Name = "OK_Button"
         Me.OK_Button.Size = New System.Drawing.Size(67, 22)
         Me.OK_Button.TabIndex = 0
@@ -76,7 +76,7 @@ Partial Class dlgIMDBSearchResults_Movie
         '
         Me.Cancel_Button.DialogResult = System.Windows.Forms.DialogResult.Cancel
         Me.Cancel_Button.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.Cancel_Button.Location = New System.Drawing.Point(574, 431)
+        Me.Cancel_Button.Location = New System.Drawing.Point(574, 455)
         Me.Cancel_Button.Name = "Cancel_Button"
         Me.Cancel_Button.Size = New System.Drawing.Size(67, 22)
         Me.Cancel_Button.TabIndex = 1
@@ -88,7 +88,7 @@ Partial Class dlgIMDBSearchResults_Movie
         Me.tvResults.HideSelection = False
         Me.tvResults.Location = New System.Drawing.Point(8, 126)
         Me.tvResults.Name = "tvResults"
-        Me.tvResults.Size = New System.Drawing.Size(281, 299)
+        Me.tvResults.Size = New System.Drawing.Size(281, 321)
         Me.tvResults.TabIndex = 5
         '
         'pbPoster
@@ -136,7 +136,7 @@ Partial Class dlgIMDBSearchResults_Movie
         '
         Me.lblYear.AutoSize = True
         Me.lblYear.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lblYear.Location = New System.Drawing.Point(476, 160)
+        Me.lblYear.Location = New System.Drawing.Point(496, 160)
         Me.lblYear.Name = "lblYear"
         Me.lblYear.Size = New System.Drawing.Size(31, 13)
         Me.lblYear.TabIndex = 13
@@ -146,9 +146,9 @@ Partial Class dlgIMDBSearchResults_Movie
         'lblDirectors
         '
         Me.lblDirectors.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lblDirectors.Location = New System.Drawing.Point(476, 186)
+        Me.lblDirectors.Location = New System.Drawing.Point(496, 186)
         Me.lblDirectors.Name = "lblDirectors"
-        Me.lblDirectors.Size = New System.Drawing.Size(165, 16)
+        Me.lblDirectors.Size = New System.Drawing.Size(160, 16)
         Me.lblDirectors.TabIndex = 15
         Me.lblDirectors.Text = "Directors"
         Me.lblDirectors.Visible = False
@@ -156,9 +156,9 @@ Partial Class dlgIMDBSearchResults_Movie
         'lblGenre
         '
         Me.lblGenre.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lblGenre.Location = New System.Drawing.Point(476, 213)
+        Me.lblGenre.Location = New System.Drawing.Point(496, 213)
         Me.lblGenre.Name = "lblGenre"
-        Me.lblGenre.Size = New System.Drawing.Size(165, 52)
+        Me.lblGenre.Size = New System.Drawing.Size(160, 52)
         Me.lblGenre.TabIndex = 17
         Me.lblGenre.Text = "Genre"
         Me.lblGenre.Visible = False
@@ -224,7 +224,7 @@ Partial Class dlgIMDBSearchResults_Movie
         '
         Me.chkManual.AutoSize = True
         Me.chkManual.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.chkManual.Location = New System.Drawing.Point(8, 433)
+        Me.chkManual.Location = New System.Drawing.Point(8, 457)
         Me.chkManual.Name = "chkManual"
         Me.chkManual.Size = New System.Drawing.Size(127, 17)
         Me.chkManual.TabIndex = 6
@@ -235,7 +235,7 @@ Partial Class dlgIMDBSearchResults_Movie
         '
         Me.btnVerify.Enabled = False
         Me.btnVerify.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.btnVerify.Location = New System.Drawing.Point(249, 429)
+        Me.btnVerify.Location = New System.Drawing.Point(249, 453)
         Me.btnVerify.Name = "btnVerify"
         Me.btnVerify.Size = New System.Drawing.Size(75, 22)
         Me.btnVerify.TabIndex = 8
@@ -246,7 +246,7 @@ Partial Class dlgIMDBSearchResults_Movie
         '
         Me.lblIMDBID.AutoSize = True
         Me.lblIMDBID.Font = New System.Drawing.Font("Segoe UI", 8.25!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lblIMDBID.Location = New System.Drawing.Point(476, 277)
+        Me.lblIMDBID.Location = New System.Drawing.Point(496, 277)
         Me.lblIMDBID.Name = "lblIMDBID"
         Me.lblIMDBID.Size = New System.Drawing.Size(34, 13)
         Me.lblIMDBID.TabIndex = 19
@@ -396,7 +396,7 @@ Partial Class dlgIMDBSearchResults_Movie
         Me.AutoScaleDimensions = New System.Drawing.SizeF(96.0!, 96.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi
         Me.CancelButton = Me.Cancel_Button
-        Me.ClientSize = New System.Drawing.Size(664, 494)
+        Me.ClientSize = New System.Drawing.Size(664, 518)
         Me.ControlBox = False
         Me.Controls.Add(Me.btnOpenFolder)
         Me.Controls.Add(Me.txtFileName)
@@ -429,7 +429,7 @@ Partial Class dlgIMDBSearchResults_Movie
         Me.Icon = CType(resources.GetObject("$this.Icon"), System.Drawing.Icon)
         Me.MaximizeBox = False
         Me.MinimizeBox = False
-        Me.MinimumSize = New System.Drawing.Size(670, 500)
+        Me.MinimumSize = New System.Drawing.Size(670, 524)
         Me.Name = "dlgIMDBSearchResults_Movie"
         Me.Text = "Search Results"
         CType(Me.pbPoster, System.ComponentModel.ISupportInitialize).EndInit()

@@ -1003,6 +1003,58 @@ Public Class Functions
             End If
         End If
     End Function
+
+    ''' <summary>
+    ''' Liefert eine Textfarbe, die auf dem angegebenen Hintergrund lesbar bleibt.
+    ''' </summary>
+    ''' <param name="foreColor">Die gewuenschte Textfarbe</param>
+    ''' <param name="backColor">Der Hintergrund, auf dem der Text gezeichnet wird</param>
+    ''' <returns><paramref name="foreColor"/>, wenn der Kontrast reicht - sonst die
+    ''' Systemfarbe fuer markierten Text (heller Text auf dunklem Grund).</returns>
+    ''' <remarks>
+    ''' Manche Theme-Farben sind auf dem Auswahl-Hintergrund nicht lesbar - gruen
+    ''' auf blau zum Beispiel. Der Kontrast wird nach WCAG berechnet; unter 2:1
+    ''' wird auf HighlightText zurueckgefallen, damit ausgewahlte Zeilen immer
+    ''' lesbar bleiben. Schwarz auf Blau (2,2:1) bleibt unveraendert.
+    ''' </remarks>
+    Public Shared Function ReadableForeColor(ByVal foreColor As Color, ByVal backColor As Color) As Color
+        If ContrastRatio(foreColor, backColor) >= 2.0 Then Return foreColor
+
+        Return Color.FromKnownColor(KnownColor.HighlightText)
+    End Function
+
+    ''' <summary>
+    ''' Berechnet das Kontrastverhaeltnis zweier Farben (WCAG 2.1).
+    ''' </summary>
+    ''' <returns>Ein Wert von 1 (gleich) bis 21 (schwarz auf weiss)</returns>
+    Public Shared Function ContrastRatio(ByVal first As Color, ByVal second As Color) As Double
+        Dim l1 As Double = RelativeLuminance(first)
+        Dim l2 As Double = RelativeLuminance(second)
+
+        Return (Math.Max(l1, l2) + 0.05) / (Math.Min(l1, l2) + 0.05)
+    End Function
+
+    ''' <summary>
+    ''' Berechnet die relative Helligkeit einer Farbe (WCAG 2.1).
+    ''' </summary>
+    Public Shared Function RelativeLuminance(ByVal color As Color) As Double
+        Dim r As Double = RelativeLuminanceOfChannel(color.R)
+        Dim g As Double = RelativeLuminanceOfChannel(color.G)
+        Dim b As Double = RelativeLuminanceOfChannel(color.B)
+
+        Return (0.2126 * r) + (0.7152 * g) + (0.0722 * b)
+    End Function
+
+    Private Shared Function RelativeLuminanceOfChannel(ByVal value As Integer) As Double
+        Dim channel As Double = value / 255.0
+
+        If channel > 0.03928 Then
+            Return Math.Pow((channel + 0.055) / 1.055, 2.4)
+        End If
+
+        Return channel / 12.92
+    End Function
+
     ''' <summary>
     ''' Convert a VB-styled DateTime to a valid Unix-style timestamp
     ''' </summary>
@@ -1559,35 +1611,61 @@ Public Class Functions
     ''' a log message will be generated but no further action will be taken.
     ''' This is to prevent malformed URIs from attacking the user's machine.</remarks>
     Public Shared Function Launch(ByRef Destination As String, Optional ByRef AllowLocalFiles As Boolean = False) As Boolean
-        If String.IsNullOrEmpty(Destination) Then
-            logger.Error("Blank destination")
-            Return False
-        End If
-        Try
-            Dim uriDestination As New Uri(Destination)
-            If uriDestination.IsFile() Then
-                If (Not AllowLocalFiles) Then
-                    logger.Error("Destination is a file, which is not permitted for security reasons <{0}>", Destination)
-                    Return False
-                Else
-                    If (Not File.Exists(uriDestination.LocalPath)) Then
-                        logger.Error("Destination is a file, but it does not exist <{0}>", Destination)
-                        Return False
-                    Else
-                        Process.Start(uriDestination.LocalPath)
-                        Return True
-                    End If
-                End If
-            End If
+        Dim uriDestination As Uri = GetLaunchUri(Destination, AllowLocalFiles)
+        If uriDestination Is Nothing Then Return False
 
-            'If we got this far, everything is OK, so we can go ahead and launch it!
-            Process.Start(uriDestination.AbsoluteUri())
+        Try
+            If uriDestination.IsFile() Then
+                Process.Start(uriDestination.LocalPath)
+            Else
+                Process.Start(uriDestination.AbsoluteUri())
+            End If
         Catch ex As Exception
             logger.Error(ex, New StackFrame().GetMethod().Name & Convert.ToChar(Windows.Forms.Keys.Tab) & "Could not launch <" & Destination & ">")
             Return False
         End Try
         'If you got here, everything went fine
         Return True
+    End Function
+
+    ''' <summary>
+    ''' Checks whether a destination may be opened and returns the URI to open.
+    ''' </summary>
+    ''' <param name="Destination">URL or file that would be opened.</param>
+    ''' <param name="AllowLocalFiles">If <c>False</c>, <c>Nothing</c> is returned if the destination points to a local file.
+    ''' This protects the user's machine from malformed URLs.</param>
+    ''' <returns>The URI to open, or <c>Nothing</c> if the destination must not be opened.</returns>
+    ''' <remarks>Kept apart from <see cref="Launch"/> so that the check can be tested without
+    ''' side effects: a test that calls <c>Launch</c> opens the user's browser
+    ''' every single time the test suite runs.</remarks>
+    Public Shared Function GetLaunchUri(ByVal Destination As String, Optional ByVal AllowLocalFiles As Boolean = False) As Uri
+        If String.IsNullOrEmpty(Destination) Then
+            logger.Error("Blank destination")
+            Return Nothing
+        End If
+
+        Dim uriDestination As Uri = Nothing
+        Try
+            uriDestination = New Uri(Destination)
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name & Convert.ToChar(Windows.Forms.Keys.Tab) & "Could not launch <" & Destination & ">")
+            Return Nothing
+        End Try
+
+        If uriDestination.IsFile() Then
+            If (Not AllowLocalFiles) Then
+                logger.Error("Destination is a file, which is not permitted for security reasons <{0}>", Destination)
+                Return Nothing
+            End If
+
+            If (Not File.Exists(uriDestination.LocalPath)) Then
+                logger.Error("Destination is a file, but it does not exist <{0}>", Destination)
+                Return Nothing
+            End If
+        End If
+
+        'Everything is OK - this is the URI that may be opened
+        Return uriDestination
     End Function
 
     ''' <summary>

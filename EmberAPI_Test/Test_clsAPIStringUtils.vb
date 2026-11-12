@@ -132,155 +132,35 @@ Namespace EmberTests
             'Assert
             Assert.IsTrue(returnValue, "Expected True, but received False, for KeyChar of Nothing")
         End Sub
+        'Hinweis: APIXML.CacheXMLs und StringUtils.GenreFilter existieren in EmberAPI nicht mehr
+        'und haben keinen Ersatz. Die vier zugehoerigen Tests wurden deshalb entfernt.
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_GenreFilter_NothingParam()
+        Public Sub StringUtils_RemoveStackingMarkers()
             'Arrange
-            APIXML.CacheXMLs()
-            'Act
-            Dim returnValue As String = StringUtils.GenreFilter(Nothing)
-            'Assert
-            Assert.IsTrue(returnValue = String.Empty, "Expected empty string, not Nothing, nor anything longer. ({0})", returnValue)
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub StringUtils_GenreFilter_BasicSingleItems()
-            'Arrange
-            APIXML.CacheXMLs()
-
-            Dim source As New List(Of String)
-            With source
-                .Add("Action")
-                .Add("Adult")
-                .Add("Adventure")
-                .Add("Animation")
-                .Add("Anime")
-                .Add("Manga")
-                .Add("Biography")
-                .Add("Bollywood")
-                .Add("Eastern")
-                .Add("Children")
-                .Add("Christmas")
-                .Add("Comedy")
-                .Add("Concert")
-                .Add("Crime")
-                .Add("Disaster")
-                .Add("Documentary")
-                .Add("Drama")
-                .Add("Family")
-                .Add("Fantasy")
-                .Add("Film Noir")
-                .Add("Halloween")
-                .Add("Hentai")
-                .Add("History")
-                .Add("Horror")
-                .Add("Splatter")
-                .Add("Independent")
-                .Add("Interview")
-                .Add("Martial Arts")
-                .Add("Mini-TV Series")
-                .Add("Monster")
-                .Add("Music")
-                .Add("Musical")
-                .Add("Mystery")
-                .Add("Nature")
-                .Add("Post-Apocalypse")
-                .Add("Religion")
-                .Add("Romance")
-                .Add("Sci-Fi")
-                .Add("Science-Fiction")
-                .Add("Sport")
-                .Add("Stageplay")
-                .Add("Stand Up")
-                .Add("Superhero")
-                .Add("Supernatural")
-                .Add("Thriller")
-                .Add("War")
-                .Add("Western")
-                .Add("Wrestling")
-                .Add("Short")
-            End With
-
-            For Each entry As String In source
-                'Act
-                Dim returnValue As String = StringUtils.GenreFilter(entry)
-                'Assert
-                Assert.AreEqual(entry, returnValue, "Expected '{0}', but received '{1}'", entry, returnValue)
-            Next
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub StringUtils_GenreFilter_BasicAllItems()
-            'Arrange
-            APIXML.CacheXMLs()
-
-            'Arrange
-            Dim source = "Action/Adult/Adventure/Animation/Anime/Manga/Biography/Bollywood/Eastern/Children/Christmas/Comedy/Concert/Crime/Disaster/Documentary/Drama/Family/Fantasy/Film Noir/Halloween/Hentai/History/Horror/Splatter/Independent/Interview/Martial Arts/Mini-TV Series/Monster/Music/Musical/Mystery/Nature/Post-Apocalypse/Religion/Romance/Sci-Fi/Science-Fiction/Sport/Stageplay/Stand Up/Superhero/Supernatural/Thriller/War/Western/Wrestling/Short"
-            'Act
-            Dim returnValue As String = StringUtils.GenreFilter(source)
-            'Assert
-            Assert.AreEqual(source, returnValue, "Expected '{0}', but received '{1}'", source, returnValue)
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub StringUtils_GenreFilter_SpecialConditions()
-            'Arrange
-            APIXML.CacheXMLs()
-
-            Dim source As New Dictionary(Of String, String)
-            With source
-                .Add("Action/Adventure", "Action/Adventure")
-                .Add("action/Adventure", "Action/Adventure")
-                .Add("action/AD v-E_N  tu__rE", "Action/Adventure") 'Believe it or not...
-                .Add("Adventure/Action", "Adventure/Action")
-                .Add("Action/ Adventure", "Action/Adventure")
-                .Add("Action /Adventure", "Action/Adventure")
-                .Add(" Action/Adventure", "Action/Adventure")
-                .Add("Action/Adventure ", "Action/Adventure")
-                .Add(" Action / Adventure ", "Action/Adventure")
-                .Add("Post Apocalypse", "Post-Apocalypse")
-                .Add("Post--Apocalypse", "Post-Apocalypse")
-                .Add("Post-Apocalyptic", String.Empty)
-                .Add("Sci-Fi/Science Fiction/Music", "Sci-Fi/Science-Fiction/Music")
-                .Add("Sci_Fi/Science-Fiction/Music", "Sci-Fi/Science-Fiction/Music")
-                .Add("Sci Fi/Science_Fiction/Music", "Sci-Fi/Science-Fiction/Music")
-                .Add("Sci Fi/Science%Fiction/Music", "Sci-Fi/Music")    'The invalid char in Science%Fiction will cause it to be filtered out
-
-            End With
-
-            For Each entry As KeyValuePair(Of String, String) In source
-                'Act
-                Dim returnValue As String = StringUtils.GenreFilter(entry.Key)
-                'Assert
-                Assert.AreEqual(entry.Value, returnValue, "Expected '{0}', but received '{1}', for value '{2}'", entry.Value, returnValue, entry.Key)
-            Next
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub StringUtils_CleanStackingMarkers_NoAsterix()
-            'Arrange
-            'Might need to explicitely configure AdvancedSettings DisableMultiPartMedia to True
-
-            'APIXML.CacheXMLs()
-
+            'Die heutige Funktion lautet FileUtils.Common.RemoveStackingMarkers und arbeitet
+            'auf einem vollstaendigen Pfad. Sie entfernt den ersten Stacking-Marker
+            '(- cd1, .pt1, .part2, .dvd2, .disc3, .disk4 usw.) aus dem Dateinamen.
+            'Ordner-Marker (z.B. "Film CD1") werden bewusst NICHT entfernt, weil das
+            'Muster zwingend auf eine Dateiendung zeigen muss.
             Dim source As New Dictionary(Of String, String)
             With source
                 .Add(String.Empty, String.Empty)
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps\yodeling.in.the.alps.avi", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps\yodeling.in.the.alps.avi")  'Nothing to do
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - Part 1\yodeling.in.the.alps.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - Part 1\yodeling.in.the.alps.mkv")    'Won't touch the Part 1 because of the space
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - Part 2\yodeling.in.the.alps.pt1.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - Part 2\yodeling.in.the.alps .mkv")   'Will take care of pt1 because it fits profile
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - Part3\yodeling.in.the.alps.pt2.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps \yodeling.in.the.alps .mkv")    'Should work on directory names too
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 4\yodeling.in.the.alps.cd1.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 4\yodeling.in.the.alps .mkv")
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 5\yodeling.in.the.alps.dvd-005.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 5\yodeling.in.the.alps .mkv")
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 6\yodeling.in.the.alps.disc.4.AVC.EER.Nobody.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 6\yodeling.in.the.alps .AVC.EER.Nobody.mkv")    'Should also leave other text alone
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 6\yodeling.in.the.alps.disk.4.AVC.EER.Nobody.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 6\yodeling.in.the.alps .AVC.EER.Nobody.mkv")    'Should also leave other text alone
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 7\yodeling.in.the.alps.part_9.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 7\yodeling.in.the.alps .mkv")
-                .Add("c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 8\yodeling.in.the.alps.part`10.mkv", "c:\Users\Some Name\Documents\Files\Movies\Yodeling In The Alps - 8\yodeling.in.the.alps.part`10.mkv")
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.avi", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.avi")   'Kein Marker - bleibt unveraendert
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.cd1.mkv", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.mkv")
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.pt1.mkv", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.mkv")
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.part2.mkv", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.mkv")
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.dvd2.mkv", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.mkv")
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.disc3.mkv", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.mkv")
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.disk4.mkv", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.mkv")
+                .Add("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.cc1.mkv", "C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.cc1.mkv")  '"cc" ist kein Stacking-Marker
+                .Add("C:\Movies\Yodeling In The Alps - Part 2\yodeling.in.the.alps.pt1.mkv", "C:\Movies\Yodeling In The Alps - Part 2\yodeling.in.the.alps.mkv")  'Nur der erste Marker wird entfernt
+                .Add("C:\Movies\Film CD1\film.mkv", "C:\Movies\Film CD1\film.mkv")    'Ordnermarker werden nicht entfernt
             End With
 
             For Each entry As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.CleanStackingMarkers(entry.Key)
+                Dim returnValue As String = FileUtils.Common.RemoveStackingMarkers(entry.Key)
                 'Assert
                 Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
             Next
@@ -411,42 +291,33 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterName_NothingParameter()
+        Public Sub StringUtils_FilterTitleFromPath_Movie_NothingParameter()
             'Arrange
-            Dim returnValue As String = StringUtils.FilterName_Movie(Nothing)
+            'Act
+            Dim returnValue As String = StringUtils.FilterTitleFromPath_Movie(Nothing, False, False)
             'Assert
             Assert.AreEqual(String.Empty, returnValue, "Source was Nothing")
         End Sub
 
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterName_DoExtras_LeavePunctuation()
+        Public Sub StringUtils_FilterTitleFromPath_Movie_AusDateiname()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Die heutige Funktion lautet StringUtils.FilterTitleFromPath_Movie und bekommt
+            'einen vollstaendigen Pfad. Die beiden Flags bestimmen, ob der Dateiname oder
+            'der Ordnername verwendet wird - die alten Flags fuer "Extras" und
+            '"Satzzeichen entfernen" gibt es nicht mehr.
+            'Es werden die Standardfilter der Einstellungen verwendet
+            '(Jahresangabe, Aufloesung, BluRay usw. werden entfernt).
             Dim source As New Dictionary(Of String, String)
             With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "Washington")
-                .Add("1080p", "1080P")
-                .Add("1080p.", "1080P")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "A")
-                .Add("a.1080p.", "A")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "Other Movie, The")
-                .Add("A B.C. Movie", "B C  Movie, A")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
+                .Add("C:\Movies\The Movie (2013)\The Movie (2013).mkv", "The Movie")
+                .Add("C:\Movies\Some.Movie.1080p.BluRay.x264\Some.Movie.1080p.BluRay.x264.mkv", "Some Movie")
             End With
 
             For Each entry As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_Movie(entry.Key, True, False)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_Movie(entry.Key, False, False)
                 'Assert
                 Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
             Next
@@ -454,33 +325,19 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterName_DoExtras_RemovePunct()
+        Public Sub StringUtils_FilterTitleFromPath_Movie_AusOrdnername()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Bei IsSingle = True und UseForderName = True wird der Name des
+            'Ordners statt des Dateinamens verwendet.
             Dim source As New Dictionary(Of String, String)
             With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "Washington")
-                .Add("1080p", "1080P")
-                .Add("1080p.", "1080P")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "A")
-                .Add("a.1080p.", "A")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "Other Movie The")
-                .Add("A B.C. Movie", "B C Movie A")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
+                .Add("C:\Movies\Best.Movie.1080p\Best.Movie.mkv", "Best Movie")
+                .Add("C:\Movies\The Movie (2013)\The Movie (2013).mkv", "The Movie")
             End With
 
             For Each entry As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_Movie(entry.Key, True, True)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_Movie(entry.Key, True, True)
                 'Assert
                 Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
             Next
@@ -488,67 +345,19 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterName_NoExtras_RemovePunct()
+        Public Sub StringUtils_FilterTitleFromPath_Movie_IsSingleOhneOrdnername()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'IsSingle = True allein reicht nicht aus - ohne UseForderName wird
+            'weiterhin der Dateiname verwendet.
             Dim source As New Dictionary(Of String, String)
             With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "washington")
-                .Add("1080p", "1080p")
-                .Add("1080p.", "1080p")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "a")
-                .Add("a.1080p.", "a")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "The Other Movie")
-                .Add("A B.C. Movie", "A B C Movie")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
+                .Add("C:\Movies\The Movie (2013)\The Movie (2013).mkv", "The Movie")
+                .Add("C:\Movies\Some.Movie.1080p.BluRay.x264\Some.Movie.1080p.BluRay.x264.mkv", "Some Movie")
             End With
 
             For Each entry As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_Movie(entry.Key, False, True)
-                'Assert
-                Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
-            Next
-
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub StringUtils_FilterName_NoExtras_LeavePunct()
-            'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
-            Dim source As New Dictionary(Of String, String)
-            With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "washington")
-                .Add("1080p", "1080p")
-                .Add("1080p.", "1080p")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "a")
-                .Add("a.1080p.", "a")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "The Other Movie")
-                .Add("A B.C. Movie", "A B C  Movie")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
-            End With
-
-            For Each entry As KeyValuePair(Of String, String) In source
-                'Act
-                Dim returnValue As String = StringUtils.FilterName_Movie(entry.Key, False, False)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_Movie(entry.Key, True, False)
                 'Assert
                 Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
             Next
@@ -579,39 +388,37 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTokens_NothingParameter()
+        Public Sub StringUtils_SortTokens_NothingParameter()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
+            'Die heutige Funktion lautet StringUtils.SortTokens. Sie benutzt die
+            'Sortier-Token aus Master.eSettings.GeneralSortTokens und gibt den Titel
+            'unveraendert zurueck, wenn kein Token passt.
             'Act
-            Dim result = StringUtils.FilterTokens_Movie(Nothing)
+            Dim result As String = StringUtils.SortTokens(Nothing)
             'Assert
-            Assert.AreEqual(result, String.Empty, "Unexpected result from Nothing parameter")
+            Assert.IsNull(result, "Bei Nothing wird der Eingabewert unveraendert zurueckgegeben")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTokens()
+        Public Sub StringUtils_SortTokens()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
+            'Die Standard-Tokens sind "a", "an", "das", "der", "die" und "the".
+            'Ein Token muss direkt am Anfang des Titels stehen und von einem
+            'Leerzeichen gefolgt werden, sonst greift es nicht.
             Dim source As New Dictionary(Of String, String)
             With source
                 .Add(String.Empty, String.Empty)
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard")
-                .Add("The. Movie.", "Movie., The")
-                .Add("The- Movie", "Movie, The")
-                .Add("The - Movie", "- Movie, The")
-                .Add("A & B", "& B, A")
+                .Add("The Movie", "Movie, The")
+                .Add("A Movie", "Movie, A")
                 .Add("An Old Movie", "Old Movie, An")
                 .Add("The A In That", "A In That, The")
-                .Add("Theo And Claude", "Theo And Claude")
+                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard")
+                .Add("The. Movie.", "The. Movie.")   'Kein Leerzeichen nach "The" - Token greift nicht
             End With
 
             For Each entry As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterTokens_Movie(entry.Key)
+                Dim returnValue As String = StringUtils.SortTokens(entry.Key)
                 'Assert
                 Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
             Next
@@ -622,33 +429,39 @@ Namespace EmberTests
 
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVEpName_NothingEpName()
+        Public Sub StringUtils_FilterTitleFromPath_TVEpisode_NothingPfad()
             'Arrange
-            Dim returnValue As String = StringUtils.FilterName_TVEp(Nothing, "Test Show")
+            'Die heutige Funktion lautet StringUtils.FilterTitleFromPath_TVEpisode und
+            'erwartet einen vollstaendigen Pfad sowie den Namen der Serie.
+            'Act
+            Dim returnValue As String = StringUtils.FilterTitleFromPath_TVEpisode(Nothing, "Test Show")
             'Assert
-            Assert.AreEqual(String.Empty, returnValue, "Episode name was Nothing")
+            Assert.AreEqual(String.Empty, returnValue, "Pfad war Nothing")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVEpName_NothingShowName()
+        Public Sub StringUtils_FilterTitleFromPath_TVEpisode_NothingShowName()
             'Arrange
+            'Ohne Seriennamen wird der gefilterte Episodentitel unveraendert zurueckgegeben.
             Dim episodeName = "Test Episode"
-            Dim returnValue As String = StringUtils.FilterName_TVEp(episodeName.Clone, Nothing)  'Cloned to prevent original from being modified
+            'Act
+            Dim returnValue As String = StringUtils.FilterTitleFromPath_TVEpisode(episodeName.Clone, Nothing)  'Cloned to prevent original from being modified
             'Assert
             Assert.AreEqual(episodeName, returnValue, "Show name was Nothing")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVEpName_NothingEpAndShowName()
+        Public Sub StringUtils_FilterTitleFromPath_TVEpisode_NothingPfadUndShowName()
             'Arrange
-            Dim returnValue As String = StringUtils.FilterName_TVEp(Nothing, Nothing)
+            'Act
+            Dim returnValue As String = StringUtils.FilterTitleFromPath_TVEpisode(Nothing, Nothing)
             'Assert
             Assert.AreEqual(String.Empty, returnValue, "Episode and Show name was Nothing")
         End Sub
         ''' <summary>
         ''' Internal structure to aid with testing TV Filters
         ''' </summary>
-        ''' <remarks>Contains input Episode and Show names, along with an expected result</remarks>
+        ''' <remarks>Contains input Episode path and Show name, along with an expected result</remarks>
         Friend Structure Triplet
             Dim Episode As String
             Dim Show As String
@@ -662,38 +475,22 @@ Namespace EmberTests
         End Structure
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVEpName_DoExtras_LeavePunctuation()
+        Public Sub StringUtils_FilterTitleFromPath_TVEpisode_SatzzeichenBleiben()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Die alten Flags fuer "Extras" und "Satzzeichen entfernen" gibt es nicht mehr.
+            'Bindestriche und kaufmaennische Zeichen bleiben daher erhalten, Punkte
+            'werden zu Leerzeichen und Unterstriche ebenfalls zu Leerzeichen.
             Dim source As New List(Of Triplet)
             With source
-                .Add(New Triplet("Episode-Name", "Show Name", "Episode-Name"))  'Test punctuation
-                .Add(New Triplet("Episode_Name", "Show Name", "Episode_Name"))  'Test punctuation
-                .Add(New Triplet("Episode & Name", "Show Name", "Episode & Name"))  'Test punctuation
-                .Add(New Triplet("Episode Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("washington.dc", "Show Name", "Washington"))   'ERROR - Edge case, but similar to Director's Cut, so don't know how to handle.
-                .Add(New Triplet("1080p", "Show Name", "1080P"))
-                .Add(New Triplet("1080p.", "Show Name", "1080P"))
-                .Add(New Triplet("1080", "Show Name", "1080"))
-                .Add(New Triplet("1080.", "Show Name", "1080"))
-                .Add(New Triplet("a.1080.", "Show Name", "A"))
-                .Add(New Triplet("a.1080p.", "Show Name", "A"))
-                .Add(New Triplet("True.Blue.720p.BluRay.DTS.x264-LiZard", "Show Name", "True Blup"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Show Name", "Movie Name Completp"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("The.Other.Movie.2013.WHERE.BLURAY-LDS", "Show Name", "The Other Movie"))
-                .Add(New Triplet("A B.C. Movie", "Show Name", "A B C  Movie"))   'Note double space, because remPunct is not set
-                .Add(New Triplet("1999 A.D.", "Show Name", "1999 A D"))
-                .Add(New Triplet("In 999 A.D.", "Show Name", "In 999 A D"))
-                .Add(New Triplet("In.1999.A.D.", "Show Name", "In"))
-                .Add(New Triplet("Random.Show.S03E04.720p.BluRay.DTS.x264-Scene.mkv", "Random Show", String.Empty))  'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
+                .Add(New Triplet("C:\TV\Show Name\S01E02\Episode-Name.mkv", "Show Name", "Episode-Name"))
+                .Add(New Triplet("C:\TV\Show Name\S01E02\Episode & Name.mkv", "Show Name", "Episode & Name"))
+                .Add(New Triplet("C:\TV\Show Name\S01E02\Episode Name.mkv", "Show Name", "Episode Name"))
+                .Add(New Triplet("C:\TV\Show Name\S01E02\Episode_Name.mkv", "Show Name", "Episode Name"))
             End With
 
             For Each entry As Triplet In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_TVEp(entry.Episode, entry.Show, True, False)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_TVEpisode(entry.Episode, entry.Show)
                 'Assert
                 Assert.AreEqual(entry.Expected, returnValue, "Episode <{0}>, Show <{1}>", entry.Episode, entry.Show)
             Next
@@ -701,156 +498,86 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVEpName_DoExtras_RemovePunct()
+        Public Sub StringUtils_FilterTitleFromPath_TVEpisode_SeriennameWirdEntfernt()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Der Name der Serie wird aus dem Episodentitel entfernt.
             Dim source As New List(Of Triplet)
             With source
-                .Add(New Triplet("Episode-Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("Episode_Name", "Show Name", "Episode_Name"))  'Test punctuation - Underscore is considered acceptable punctuation
-                .Add(New Triplet("Episode & Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("Episode Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("washington.dc", "Show Name", "Washington"))   'ERROR - Edge case, but similar to Director's Cut, so don't know how to handle.
-                .Add(New Triplet("1080p", "Show Name", "1080P"))
-                .Add(New Triplet("1080p.", "Show Name", "1080P"))
-                .Add(New Triplet("1080", "Show Name", "1080"))
-                .Add(New Triplet("1080.", "Show Name", "1080"))
-                .Add(New Triplet("a.1080.", "Show Name", "A"))
-                .Add(New Triplet("a.1080p.", "Show Name", "A"))
-                .Add(New Triplet("True.Blue.720p.BluRay.DTS.x264-LiZard", "Show Name", "True Blup"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Show Name", "Movie Name Completp"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("The.Other.Movie.2013.WHERE.BLURAY-LDS", "Show Name", "The Other Movie"))
-                .Add(New Triplet("A B.C. Movie", "Show Name", "A B C Movie"))
-                .Add(New Triplet("1999 A.D.", "Show Name", "1999 A D"))
-                .Add(New Triplet("In 999 A.D.", "Show Name", "In 999 A D"))
-                .Add(New Triplet("In.1999.A.D.", "Show Name", "In"))
-                .Add(New Triplet("Random.Show.S03E04.720p.BluRay.DTS.x264-Scene.mkv", "Random Show", String.Empty))  'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
+                .Add(New Triplet("C:\TV\Show Name\S01E02\Show Name - Episode Name.mkv", "Show Name", "Episode Name"))
             End With
 
             For Each entry As Triplet In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_TVEp(entry.Episode, entry.Show, True, True)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_TVEpisode(entry.Episode, entry.Show)
                 'Assert
                 Assert.AreEqual(entry.Expected, returnValue, "Episode <{0}>, Show <{1}>", entry.Episode, entry.Show)
             Next
+
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVEpName_NoExtras_RemovePunct()
+        Public Sub StringUtils_FilterTitleFromPath_TVEpisode_AufloesungWirdEntfernt()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Aufloesung und Quellangaben werden durch die Standardfilter entfernt.
             Dim source As New List(Of Triplet)
             With source
-                .Add(New Triplet("Episode-Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("Episode_Name", "Show Name", "Episode_Name"))  'Test punctuation - Underscore is considered acceptable punctuation
-                .Add(New Triplet("Episode & Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("Episode Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("washington.dc", "Show Name", "washington"))   'ERROR - Edge case, but similar to Director's Cut, so don't know how to handle.
-                .Add(New Triplet("1080p", "Show Name", "1080p"))
-                .Add(New Triplet("1080p.", "Show Name", "1080p"))
-                .Add(New Triplet("1080", "Show Name", "1080"))
-                .Add(New Triplet("1080.", "Show Name", "1080"))
-                .Add(New Triplet("a.1080.", "Show Name", "a"))
-                .Add(New Triplet("a.1080p.", "Show Name", "a"))
-                .Add(New Triplet("True.Blue.720p.BluRay.DTS.x264-LiZard", "Show Name", "True Blup"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Show Name", "Movie Name COMPLETp"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("The.Other.Movie.2013.WHERE.BLURAY-LDS", "Show Name", "The Other Movie"))
-                .Add(New Triplet("A B.C. Movie", "Show Name", "A B C Movie"))
-                .Add(New Triplet("1999 A.D.", "Show Name", "1999 A D"))
-                .Add(New Triplet("In 999 A.D.", "Show Name", "In 999 A D"))
-                .Add(New Triplet("In.1999.A.D.", "Show Name", "In"))
-                .Add(New Triplet("Random.Show.S03E04.720p.BluRay.DTS.x264-Scene.mkv", "Random Show", String.Empty))  'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
+                .Add(New Triplet("C:\TV\Show Name\S01E02\Episode.Name.1080p.mkv", "Show Name", "Episode Name"))
             End With
 
             For Each entry As Triplet In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_TVEp(entry.Episode, entry.Show, False, True)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_TVEpisode(entry.Episode, entry.Show)
                 'Assert
                 Assert.AreEqual(entry.Expected, returnValue, "Episode <{0}>, Show <{1}>", entry.Episode, entry.Show)
             Next
+
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVEpName_NoExtras_LeavePunct()
+        Public Sub StringUtils_FilterTitleFromPath_TVEpisode_AllesGefiltert()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Sonderfall: Wenn nach dem Filtern und dem Entfernen des Seriennamens nichts
+            'uebrig bleibt, wird der ungefilterte Dateiname zurueckgegeben.
             Dim source As New List(Of Triplet)
             With source
-                .Add(New Triplet("Episode-Name", "Show Name", "Episode-Name"))  'Test punctuation
-                .Add(New Triplet("Episode_Name", "Show Name", "Episode_Name"))  'Test punctuation
-                .Add(New Triplet("Episode & Name", "Show Name", "Episode & Name"))  'Test punctuation
-                .Add(New Triplet("Episode Name", "Show Name", "Episode Name"))  'Test punctuation
-                .Add(New Triplet("washington.dc", "Show Name", "washington"))   'ERROR - Edge case, but similar to Director's Cut, so don't know how to handle.
-                .Add(New Triplet("1080p", "Show Name", "1080p"))
-                .Add(New Triplet("1080p.", "Show Name", "1080p"))
-                .Add(New Triplet("1080", "Show Name", "1080"))
-                .Add(New Triplet("1080.", "Show Name", "1080"))
-                .Add(New Triplet("a.1080.", "Show Name", "a"))
-                .Add(New Triplet("a.1080p.", "Show Name", "a"))
-                .Add(New Triplet("True.Blue.720p.BluRay.DTS.x264-LiZard", "Show Name", "True Blup"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Show Name", "Movie Name COMPLETp"))   'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
-                .Add(New Triplet("The.Other.Movie.2013.WHERE.BLURAY-LDS", "Show Name", "The Other Movie"))
-                .Add(New Triplet("A B.C. Movie", "Show Name", "A B C  Movie"))     'Note double space, because remPunct is not set
-                .Add(New Triplet("1999 A.D.", "Show Name", "1999 A D"))
-                .Add(New Triplet("In 999 A.D.", "Show Name", "In 999 A D"))
-                .Add(New Triplet("In.1999.A.D.", "Show Name", "In"))
-                .Add(New Triplet("Random.Show.S03E04.720p.BluRay.DTS.x264-Scene.mkv", "Random Show", String.Empty))  'TODO Dekker500 - This test is WRONG!  I need to revisit to re-factor the default settings to fix this
+                .Add(New Triplet("C:\TV\Show Name\S01E02\Show Name S01E02.mkv", "Show Name", "Show Name S01E02"))
             End With
 
             For Each entry As Triplet In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_TVEp(entry.Episode, entry.Show, False, False)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_TVEpisode(entry.Episode, entry.Show)
                 'Assert
                 Assert.AreEqual(entry.Expected, returnValue, "Episode <{0}>, Show <{1}>", entry.Episode, entry.Show)
             Next
+
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVShowName_NothingParameter()
+        Public Sub StringUtils_FilterTitleFromPath_TVShow_NothingParameter()
             'Arrange
-            Dim returnValue As String = StringUtils.FilterName_TVShow(Nothing)
+            'Die heutige Funktion lautet StringUtils.FilterTitleFromPath_TVShow und
+            'erwartet den Pfad des Serienordners.
+            'Act
+            Dim returnValue As String = StringUtils.FilterTitleFromPath_TVShow(Nothing)
             'Assert
             Assert.AreEqual(String.Empty, returnValue, "Source was Nothing")
         End Sub
 
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVShowName_DoExtras_LeavePunctuation()
+        Public Sub StringUtils_FilterTitleFromPath_TVShow_Standardfilter()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Es werden die Standardfilter der Einstellungen verwendet - Jahresangabe,
+            'Aufloesung und Punktuierungen werden entfernt.
             Dim source As New Dictionary(Of String, String)
             With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "Washington")
-                .Add("1080p", "1080P")
-                .Add("1080p.", "1080P")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "A")
-                .Add("a.1080p.", "A")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "The Other Movie")
-                .Add("A B.C. Movie", "A B C  Movie")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
+                .Add("C:\TV\The Show (2013)", "The Show")
+                .Add("C:\TV\Some.Show.1080p", "Some Show")
             End With
 
             For Each entry As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_TVShow(entry.Key, True, False)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_TVShow(entry.Key)
                 'Assert
                 Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
             Next
@@ -858,101 +585,17 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_FilterTVShowName_DoExtras_RemovePunct()
+        Public Sub StringUtils_FilterTitleFromPath_TVShow_UnterordnerWirdVerwendet()
             'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
+            'Verwendet wird der Name des letzten Ordners im Pfad.
             Dim source As New Dictionary(Of String, String)
             With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "Washington")
-                .Add("1080p", "1080P")
-                .Add("1080p.", "1080P")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "A")
-                .Add("a.1080p.", "A")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "The Other Movie")
-                .Add("A B.C. Movie", "A B C Movie")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
+                .Add("C:\TV\The Show (2013)\Season 01", "Season 01")
             End With
 
             For Each entry As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.FilterName_TVShow(entry.Key, True, True)
-                'Assert
-                Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
-            Next
-
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub StringUtils_FilterTVShowName_NoExtras_RemovePunct()
-            'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
-            Dim source As New Dictionary(Of String, String)
-            With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "washington")
-                .Add("1080p", "1080p")
-                .Add("1080p.", "1080p")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "a")
-                .Add("a.1080p.", "a")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "The Other Movie")
-                .Add("A B.C. Movie", "A B C Movie")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
-            End With
-
-            For Each entry As KeyValuePair(Of String, String) In source
-                'Act
-                Dim returnValue As String = StringUtils.FilterName_TVShow(entry.Key, False, True)
-                'Assert
-                Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
-            Next
-
-        End Sub
-        <UnitTest>
-        <TestMethod()>
-        Public Sub StringUtils_FilterTVShowName_NoExtras_LeavePunct()
-            'Arrange
-            'Load the default settings
-            Dim settings As Settings = New Settings()
-            settings.Load()
-            'Setup the actual test
-            Dim source As New Dictionary(Of String, String)
-            With source
-                .Add(String.Empty, String.Empty)
-                .Add("washington.dc", "washington")
-                .Add("1080p", "1080p")
-                .Add("1080p.", "1080p")
-                .Add("1080", "1080")
-                .Add("1080.", "1080")
-                .Add("a.1080.", "a")
-                .Add("a.1080p.", "a")
-                .Add("Movie.Name.COMPLETE.720p.BluRay.DTS.x264-LiZard", "Movie Name COMPLETE")
-                .Add("The.Other.Movie.2013.WHERE.BLURAY-LDS", "The Other Movie")
-                .Add("A B.C. Movie", "A B C  Movie")   'Note double space, because remPunct is not set
-                .Add("1999 A.D.", "1999 A D")
-                .Add("In 999 A.D.", "In 999 A D")
-                .Add("In.1999.A.D.", "In")
-            End With
-
-            For Each entry As KeyValuePair(Of String, String) In source
-                'Act
-                Dim returnValue As String = StringUtils.FilterName_TVShow(entry.Key, False, False)
+                Dim returnValue As String = StringUtils.FilterTitleFromPath_TVShow(entry.Key)
                 'Assert
                 Assert.AreEqual(entry.Value, returnValue, "Source <{0}>", entry.Key)
             Next
@@ -1028,44 +671,26 @@ Namespace EmberTests
             Next
         End Sub
         ''' <summary>
-        ''' Internal structure for the IsStacked method testing
+        ''' Internal structure for the isStacked method testing
         ''' </summary>
         ''' <remarks></remarks>
         Friend Structure IsStackedStructure
-            Dim Name As String
-            Dim VTS As Boolean
+            Dim Path As String
             Dim Expected As Boolean
 
-            Public Sub New(_name As String, _vts As Boolean, _expected As Boolean)
-                Name = _name
-                VTS = _vts
+            Public Sub New(_path As String, _expected As Boolean)
+                Path = _path
                 Expected = _expected
             End Sub
         End Structure
         <UnitTest>
         <TestMethod>
-        Public Sub StringUtils_IsStacked_NothingParameterNoVTS()
+        Public Sub StringUtils_IsStacked_NothingParameter()
             'Arrange
+            'Die heutige Funktion lautet FileUtils.Common.isStacked und erwartet einen
+            'vollstaendigen Pfad. Der alte Parameter fuer VIDEO_TS gibt es nicht mehr.
             'Act
-            Dim result As Boolean = StringUtils.IsStacked(Nothing)
-            'Assert
-            Assert.IsFalse(result, "Nothing parameter")
-        End Sub
-        <UnitTest>
-        <TestMethod>
-        Public Sub StringUtils_IsStacked_NothingParameterVTSTrue()
-            'Arrange
-            'Act
-            Dim result As Boolean = StringUtils.IsStacked(Nothing, True)
-            'Assert
-            Assert.IsFalse(result, "Nothing parameter")
-        End Sub
-        <UnitTest>
-        <TestMethod>
-        Public Sub StringUtils_IsStacked_NothingParameterVTSFalse()
-            'Arrange
-            'Act
-            Dim result As Boolean = StringUtils.IsStacked(Nothing, False)
+            Dim result As Boolean = FileUtils.Common.isStacked(Nothing)
             'Assert
             Assert.IsFalse(result, "Nothing parameter")
         End Sub
@@ -1073,38 +698,28 @@ Namespace EmberTests
         <TestMethod()>
         Public Sub StringUtils_IsStacked()
             'Arrange
+            'isStacked vergleicht den Pfad mit dem Pfad ohne Stacking-Marker.
+            'Als Marker zaehlen "cd1", "pt1", "part2", "dvd2", "disc3" und "disk4"
+            'im Dateinamen - Ordner-Marker werden nicht ausgewertet.
             Dim source As New List(Of IsStackedStructure)
             With source
-                .Add(New IsStackedStructure(String.Empty, False, False))
-                .Add(New IsStackedStructure(String.Empty, True, False))
-                .Add(New IsStackedStructure("VTS_01_0.VOB", False, False))
-                .Add(New IsStackedStructure("VTS_01_0.VOB", True, True))
-                .Add(New IsStackedStructure("VTS_0x_0.VOB", True, False))
-                .Add(New IsStackedStructure("VTS_01_0.movie.disk-1.vob", True, True))
-                .Add(New IsStackedStructure("VTS_01_0.movie.vob", True, True))
-                .Add(New IsStackedStructure(".VTS_01_0.movie.vob", True, False)) 'VTS must be first characters
-                .Add(New IsStackedStructure("movie.disk-1.VTS_01_0.vob", True, True))   'Valid VTS, but must be at the beginning. However normal stacking rules say this is valid
-                .Add(New IsStackedStructure("VTS_01-0.movie.disk-1.vob", True, True))   'Even though it is not a valid VTS, the normal stacking rules still apply
-                .Add(New IsStackedStructure("movie.disc1.1080p.mkv", False, True))
-                .Add(New IsStackedStructure("movie.disc1.1080p.mkv", True, True))
-                .Add(New IsStackedStructure("movie.disk_1-1080p.mkv", False, True))
-                .Add(New IsStackedStructure("movie.1080p.mkv", False, False))
-                .Add(New IsStackedStructure("something pt1.mkv", False, True))
-                .Add(New IsStackedStructure("something cc1.mkv", False, False))
-                .Add(New IsStackedStructure("something cd3.mkv", False, True))
-                .Add(New IsStackedStructure("somethDVD a 1.mkv", False, False))
-                .Add(New IsStackedStructure("somethdvD 2.mkv", False, False))
-                .Add(New IsStackedStructure("somethdvD-2.mkv", False, False))
-                .Add(New IsStackedStructure("someth-dvD-2.mkv", False, True))
-                .Add(New IsStackedStructure("pt1.mkv", False, False))
-                .Add(New IsStackedStructure("something pt1 of 3.mkv", False, True))
+                .Add(New IsStackedStructure(String.Empty, False))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.mkv", False))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.cd1.mkv", True))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.pt1.mkv", True))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.part2.mkv", True))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.dvd2.mkv", True))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.disc3.mkv", True))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.disk4.mkv", True))
+                .Add(New IsStackedStructure("C:\Movies\Yodeling In The Alps\yodeling.in.the.alps.cc1.mkv", False))  '"cc" ist kein Stacking-Marker
+                .Add(New IsStackedStructure("C:\Movies\Film CD1\film.mkv", False))    'Ordnermarker werden nicht ausgewertet
             End With
 
             For Each entry As IsStackedStructure In source
                 'Act
-                Dim returnValue As Boolean = StringUtils.IsStacked(entry.Name, entry.VTS)
+                Dim returnValue As Boolean = FileUtils.Common.isStacked(entry.Path)
                 'Assert
-                Assert.AreEqual(entry.Expected, returnValue, "Name <{0}>, VTS <{1}>", entry.Name, entry.VTS)
+                Assert.AreEqual(entry.Expected, returnValue, "Path <{0}>", entry.Path)
             Next
         End Sub
         <UnitTest>
@@ -1176,25 +791,31 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod>
-        Public Sub StringUtils_ProperCase_NothingParameter()
+        Public Sub StringUtils_ConvertToProperCase_NothingParameter()
             'Arrange
+            'Die heutige Funktion lautet StringUtils.ConvertToProperCase.
             'Act
-            Dim result As String = StringUtils.ProperCase(Nothing)
+            Dim result As String = StringUtils.ConvertToProperCase(Nothing)
             'Assert
             Assert.AreEqual(String.Empty, result, "Nothing parameter")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub StringUtils_ProperCase()
+        Public Sub StringUtils_ConvertToProperCase()
             'Arrange
+            'Der Text wird in die Grossschreibung am Wortanfang umgewandelt.
+            'Zusaetzlich werden bestimmte Kuerzel (hd, cd, dvd, ii, iii, ...) in
+            'Grossbuchstaben geschrieben - aber nur bei einer Wortgrenze.
             Dim source As New Dictionary(Of String, String)
             With source
                 .Add(String.Empty, String.Empty)
                 .Add("This is my movie", "This Is My Movie")
                 .Add(" wOW WonDER ", "Wow Wonder")   'leading and trailing whitespace
                 .Add("123 Sycamore Lane", "123 Sycamore Lane")
-                .Add("movie cd1", "Movie Cd1")
+                .Add("movie cd1", "Movie Cd1")   'Keine Wortgrenze nach "cd" - bleibt unveraendert
                 .Add("movie cd 1", "Movie CD 1")
+                .Add("movie dvd", "Movie DVD")
+                .Add("movie hd", "Movie HD")
                 .Add("Retourne à l'école", "Retourne À L'école")
                 .Add("Michael d'Angelo", "Michael D'angelo")
                 .Add("movie I", "Movie I")
@@ -1205,10 +826,10 @@ Namespace EmberTests
 
             For Each pair As KeyValuePair(Of String, String) In source
                 'Act
-                Dim returnValue As String = StringUtils.ProperCase(pair.Key)
+                Dim returnValue As String = StringUtils.ConvertToProperCase(pair.Key)
 
                 'Assert
-                Assert.AreEqual(pair.Value, returnValue, "URL <{0}>", pair.Key)
+                Assert.AreEqual(pair.Value, returnValue, "Source <{0}>", pair.Key)
             Next
         End Sub
         <UnitTest>
@@ -1470,11 +1091,11 @@ Namespace EmberTests
                 .Add("Test Filename", "Test Filename")
                 .Add("Test-Filename", "Test-Filename")
                 .Add("Test:Filename", "Test -Filename")
-                .Add("Test" & vbTab & "Filename", "Test Filename")
-                .Add("Te:st" & vbTab & "Filename", "Te -st Filename")    'Multiple items at once
+                .Add("Test" & vbTab & "Filename", "TestFilename")
+                .Add("Te:st" & vbTab & "Filename", "Te -stFilename")    'Multiple items at once
                 .Add("Test     Filename", "Test     Filename")
                 .Add("Test:::::Filename", "Test - - - - -Filename")
-                .Add("Test_File""name", "Test_File name")
+                .Add("Test_File""name", "Test_Filename")
             End With
 
             For Each pair As KeyValuePair(Of String, String) In source
@@ -1555,7 +1176,7 @@ Namespace EmberTests
                 .Add(New ShortenOutlineTest("12345", 3, "..."))       ' Test with short string, no periods
                 .Add(New ShortenOutlineTest("12345", 2, ".."))       ' Test with short string, no periods
                 .Add(New ShortenOutlineTest("12345", 1, "."))        ' Test with short string, no periods
-                .Add(New ShortenOutlineTest("12345", 0, String.Empty))  ' Test with short string, no periods
+                .Add(New ShortenOutlineTest("12345", 0, "12345"))  ' Limit 0 bedeutet: voller Plot beibehalten
                 .Add(New ShortenOutlineTest("12345", -1, String.Empty)) ' Test with short string, no periods
                 .Add(New ShortenOutlineTest("12345", -10, String.Empty))    ' Test with short string, no periods
             End With

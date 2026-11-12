@@ -878,11 +878,36 @@ Namespace FileUtils
 
             'Das Muster ist benutzerkonfigurierbar, deshalb wird ein Timeout gesetzt -
             'ein katastrophales Backtracking wuerde sonst den UI-Thread einfrieren
+            'Der Timeout ist aber nur eine Notbremse: das Standardmuster backtrackt
+            'quadratisch, wenn der String keine Dateiendung enthaelt (gemessen:
+            '120 Teilstuecke ohne Endung -> Timeout, mit Endung -> 0 ms).
+            '
+            'Ursache sind die Gruppen "(.*?)" am Anfang und "(.*?)(\.[^.]+)$" am
+            'Ende: sie zwingen den Regex, ueber jede moegliche Aufteilung des
+            'Strings zuruecktracken, um eine Dateiendung zu finden.
+            '
+            'Deshalb wird das Muster NUR auf den Dateinamen angewendet, nicht auf
+            'den vollstaendigen Pfad, UND nur wenn der Dateiname ueberhaupt eine
+            'Dateiendung hat. Das Verhalten bleibt identisch - der Marker kann nur
+            'im Dateinamen stehen und eine Dateiendung braucht der Marker ohnehin
+            'nicht -, das Muster laeuft aber nur noch ueber eine kurze Zeile.
+            Dim fileName As String = Path.GetFileName(strPath)
+            If String.IsNullOrEmpty(fileName) Then Return strPath
+
+            'Ohne Dateiendung kann das Muster nicht matchen - und wuerde dabei
+            'quadratisch zuruecktracken. In dem Fall gibt es nichts zu tun.
+            If String.IsNullOrEmpty(Path.GetExtension(fileName)) Then Return strPath
+
             Dim rxFileStacking As New Regex(FilePattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2))
-            Dim FileStacking = rxFileStacking.Match(strPath)
+            Dim FileStacking = rxFileStacking.Match(fileName)
             If FileStacking.Success Then
-                Dim strPathCleaned As String = strPath.Replace(FileStacking.Groups(2).Value, String.Empty)
-                Return strPathCleaned
+                Dim strFileNameCleaned As String = fileName.Replace(FileStacking.Groups(2).Value, String.Empty)
+                Dim strDirectory As String = Path.GetDirectoryName(strPath)
+                If String.IsNullOrEmpty(strDirectory) Then
+                    Return strFileNameCleaned
+                Else
+                    Return Path.Combine(strDirectory, strFileNameCleaned)
+                End If
             Else
                 Return strPath
             End If
@@ -2085,6 +2110,50 @@ Namespace FileUtils
             Return FilenameList
         End Function
 
+        ''' <summary>
+        ''' Liefert den Namen des Staffelordners fuer die Jellyfin-Konvention.
+        ''' </summary>
+        ''' <remarks>
+        ''' Die Specials (Staffel 0) bekommen den Ordner "Specials" - so sind sie
+        ''' klar als Sonderfolgen zu erkennen und nicht mit Staffel 0 zu verwechseln.
+        ''' Ember liest den Ordner "Specials" beim Einlesen wieder als Staffel 0
+        ''' (siehe Functions.GetSeasonDirectoryFromShowPath).
+        ''' </remarks>
+        Public Shared Function GetJellyfinSeasonFolderName(ByVal season As Integer) As String
+            If season = 0 Then Return "Specials"
+
+            Return String.Format("Season {0:00}", season)
+        End Function
+
+        ''' <summary>
+        ''' Prueft, ob zu einer Staffel mindestens eine Datei gehoert.
+        ''' </summary>
+        ''' <remarks>
+        ''' Ohne Dateien in der Staffel gibt es auch keine Bilder. Andernfalls
+        ''' entsteht fuer jede Staffel, die der Scraper kennt, ein leerer Ordner
+        ''' in der Bibliothek.
+        ''' </remarks>
+        Public Shared Function SeasonHasFiles(ByVal DBElement As Database.DBElement) As Boolean
+            Try
+                If DBElement Is Nothing Then Return True
+                If DBElement.ContentType <> Enums.ContentType.TVSeason Then Return True
+                If DBElement.TVSeason Is Nothing Then Return True
+                If DBElement.ShowID <= 0 Then Return True
+
+                Dim season As Database.DBElement = Master.DB.Load_TVSeason(DBElement.ShowID, DBElement.TVSeason.Season, False, True)
+                If season Is Nothing OrElse season.Episodes Is Nothing Then Return True
+
+                For Each e As Database.DBElement In season.Episodes
+                    If Not String.IsNullOrEmpty(e.Filename) Then Return True
+                Next
+
+                Return False
+            Catch ex As Exception
+                logger.Error(ex, New StackFrame().GetMethod().Name)
+                Return True
+            End Try
+        End Function
+
         Public Shared Function TVSeason(ByVal DBElement As Database.DBElement, ByVal mType As Enums.ModifierType, Optional ByVal bForced As Boolean = False) As List(Of String)
             Dim FilenameList As New List(Of String)
             Dim bInside As Boolean = False
@@ -2102,6 +2171,11 @@ Namespace FileUtils
                 bInside = True
             End If
 
+            'Nur Staffeln, in denen auch Dateien liegen, bekommen Bilder. Sonst
+            'entsteht fuer jede Staffel, die der Scraper kennt, ein leerer
+            'Ordner in der Bibliothek.
+            If Not bForced AndAlso Not SeasonHasFiles(DBElement) Then Return FilenameList
+
             'Jellyfin-Namenskonvention: die Staffelbilder liegen im Staffelordner
             'und tragen feste Namen (poster.jpg, fanart.jpg, banner.jpg).
             'Die Jellyfin-Namen ("season01-poster.jpg" im Serienordner) werden von
@@ -2109,7 +2183,7 @@ Namespace FileUtils
             'Varianten beruecksichtigt, damit bestehende Bibliotheken importiert
             'werden koennen.
             If Master.eSettings.TVUseJellyfin Then
-                Dim jfSeasonPath As String = If(bInside, fSeasonPath, Path.Combine(fShowPath, String.Format("Season {0:00}", DBElement.TVSeason.Season)))
+                Dim jfSeasonPath As String = If(bInside, fSeasonPath, Path.Combine(fShowPath, GetJellyfinSeasonFolderName(DBElement.TVSeason.Season)))
                 Select Case mType
                     Case Enums.ModifierType.SeasonBanner
                         FilenameList.Add(Path.Combine(jfSeasonPath, "banner.jpg"))

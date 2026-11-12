@@ -1,4 +1,4 @@
-﻿' ################################################################################
+' ################################################################################
 ' #                             EMBER MEDIA MANAGER                              #
 ' ################################################################################
 ' ################################################################################
@@ -20,6 +20,7 @@
 Imports System.Text
 Imports Microsoft.VisualStudio.TestTools.UnitTesting
 Imports System.Windows.Forms
+Imports System.IO
 
 Imports EmberAPI
 Imports System.Drawing
@@ -45,18 +46,22 @@ Namespace EmberTests
         Public Sub ImageUtils_AddMissingStamp()
             'Arrange
             Dim userResponse As Windows.Forms.DialogResult = Nothing
-            Using img As Images = New EmberAPI.Images()
+            'EmberAPI.Images implementiert kein IDisposable - deshalb wird explizit ueber
+            'Clear() aufgeraeumt, damit die GDI-Handles freigegeben werden.
+            Dim img As New EmberAPI.Images()
+            Try
                 img.UpdateMSfromImg(My.Resources.TestPattern)
 
                 'Act
-                Using result As EmberAPI.Images = ImageUtils.AddMissingStamp(img)
-                    'result.Image.Save("AddMissingStamp.png", System.Drawing.Imaging.ImageFormat.Png)
-                    Using dialog As ImageFeedback = New ImageFeedback()
-                        dialog.LoadInfo(result.Image, "Is there a Missing stamp across the top left?")
-                        userResponse = dialog.ShowDialog()
-                    End Using
+                'AddMissingStamp liefert dieselbe Instanz zurueck, die uebergeben wurde.
+                Dim result As EmberAPI.Images = ImageUtils.AddMissingStamp(img)
+                Using dialog As ImageFeedback = New ImageFeedback()
+                    dialog.LoadInfo(result.Image, "Is there a Missing stamp across the top left?")
+                    userResponse = dialog.ShowDialog()
                 End Using
-            End Using
+            Finally
+                img.Clear()
+            End Try
             'Assert
             Assert.IsTrue(userResponse = Windows.Forms.DialogResult.Yes, "User disagreed")
         End Sub
@@ -75,103 +80,28 @@ Namespace EmberTests
         Public Sub ImageUtils_GrayScale()
             'Arrange
             Dim userResponse As System.Windows.Forms.DialogResult = DialogResult.None
-            Using img As Images = New EmberAPI.Images()
+            'EmberAPI.Images implementiert kein IDisposable - deshalb wird explizit ueber
+            'Clear() aufgeraeumt, damit die GDI-Handles freigegeben werden.
+            Dim img As New EmberAPI.Images()
+            Try
                 img.UpdateMSfromImg(My.Resources.TestPattern)
 
                 'Act
-                Using result As EmberAPI.Images = ImageUtils.GrayScale(img)
-                    'result.Image.Save("Grayscale.png", System.Drawing.Imaging.ImageFormat.Png)
-                    Using dialog As ImageFeedback = New ImageFeedback()
-                        dialog.LoadInfo(result.Image, "Is this image in grayscale?")
-                        userResponse = dialog.ShowDialog()
-                    End Using
-                End Using
-
-            End Using
-            'Assert
-            Assert.IsTrue(userResponse = Windows.Forms.DialogResult.Yes, "User disagreed")
-
-        End Sub
-        <InteractiveTest>
-        <TestMethod()>
-        Public Sub ImageUtils_DrawGradEllipse_NothingParameter()
-            'Arrange
-            Dim userResponse As System.Windows.Forms.DialogResult = DialogResult.None
-            Using img = My.Resources.TestPattern_Med, _
-                g = Graphics.FromImage(img), _
-                font = New Font("Arial", 8, FontStyle.Bold)
-
-                g.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
-
-                Dim message = String.Format("{0} x {1}", img.Width, img.Height)
-
-                Dim messageSize = g.MeasureString(message, font).ToSize()
-                Dim paddingSize = New Size(15, 2)
-
-                Dim x = (img.Width - messageSize.Width) \ 2 - paddingSize.Width
-                Dim y = (img.Height - messageSize.Height) \ 2 - paddingSize.Height
-                Dim width = messageSize.Width + paddingSize.Width * 2
-                Dim height = messageSize.Height + paddingSize.Height * 2
-                Dim rect = New Rectangle(x, y, width, height)
-
-                Dim centerColor = Color.FromArgb(250, 120, 120, 120)
-                Dim outerColor = Color.FromArgb(100, 255, 255, 255)
-                'Dim rect = New Rectangle(Convert.ToInt32((img.Width - messageSize.Width) / 2 - 15), img.Height - 25, messageSize.Width + 30, 25)
-
-                'Act
-                ImageUtils.DrawGradEllipse(Nothing, rect, centerColor, outerColor)
-
-                g.DrawString(message, font, New SolidBrush(Color.White), (img.Width - messageSize.Width) \ 2, (img.Height - messageSize.Height) \ 2)
-                'img.Save("DrawGradEllipse.png", System.Drawing.Imaging.ImageFormat.Png)
+                'GrayScale veraendert die uebergebene Instanz und liefert sie zurueck.
+                Dim result As EmberAPI.Images = ImageUtils.GrayScale(img)
                 Using dialog As ImageFeedback = New ImageFeedback()
-                    dialog.LoadInfo(img, "Do you see the image size (300x236) in the center of the image, with NO surrounding ellipse?")
+                    dialog.LoadInfo(result.Image, "Is this image in grayscale?")
                     userResponse = dialog.ShowDialog()
                 End Using
-            End Using
-
+            Finally
+                img.Clear()
+            End Try
             'Assert
             Assert.IsTrue(userResponse = Windows.Forms.DialogResult.Yes, "User disagreed")
+
         End Sub
-        <InteractiveTest>
-        <TestMethod()>
-        Public Sub ImageUtils_DrawGradEllipse()
-            'Arrange
-            Dim userResponse As System.Windows.Forms.DialogResult = DialogResult.None
-            Using img = My.Resources.TestPattern_Med, _
-                g = Graphics.FromImage(img), _
-                font = New Font("Arial", 8, FontStyle.Bold)
-
-                g.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
-
-                Dim message = String.Format("{0} x {1}", img.Width, img.Height)
-
-                Dim messageSize = g.MeasureString(message, font).ToSize()
-                Dim paddingSize = New Size(15, 2)
-
-                Dim x = (img.Width - messageSize.Width) \ 2 - paddingSize.Width
-                Dim y = (img.Height - messageSize.Height) \ 2 - paddingSize.Height
-                Dim width = messageSize.Width + paddingSize.Width * 2
-                Dim height = messageSize.Height + paddingSize.Height * 2
-                Dim rect = New Rectangle(x, y, width, height)
-
-                Dim centerColor = Color.FromArgb(250, 120, 120, 120)
-                Dim outerColor = Color.FromArgb(100, 255, 255, 255)
-                'Dim rect = New Rectangle(Convert.ToInt32((img.Width - messageSize.Width) / 2 - 15), img.Height - 25, messageSize.Width + 30, 25)
-
-                'Act
-                ImageUtils.DrawGradEllipse(g, rect, centerColor, outerColor)
-
-                g.DrawString(message, font, New SolidBrush(Color.White), (img.Width - messageSize.Width) \ 2, (img.Height - messageSize.Height) \ 2)
-                'img.Save("DrawGradEllipse.png", System.Drawing.Imaging.ImageFormat.Png)
-                Using dialog As ImageFeedback = New ImageFeedback()
-                    dialog.LoadInfo(img, "Do you see the image size (300x236) in the center of the image, surrounded by a faint white ellipse with a gray center?")
-                    userResponse = dialog.ShowDialog()
-                End Using
-            End Using
-
-            'Assert
-            Assert.IsTrue(userResponse = Windows.Forms.DialogResult.Yes, "User disagreed")
-        End Sub
+        'Hinweis: ImageUtils.DrawGradEllipse existiert in EmberAPI nicht mehr und hat keinen
+        'Ersatz. Die beiden zugehoerigen Tests wurden deshalb entfernt.
         <UnitTest>
         <TestMethod()>
         Public Sub ImageUtils_ResizeImage_width_height_padding_NothingImage()
@@ -474,7 +404,7 @@ Namespace EmberTests
 
             Assert.IsTrue(success)
         End Sub
-        <UnitTest>
+        <InteractiveTest>
         <TestMethod()>
         Public Sub ImageUtils_ResizeImage_width_height_padding_ShrinkVert_WithGreenPaddingSides()
             'Arrange
@@ -540,7 +470,7 @@ Namespace EmberTests
 
             Assert.IsTrue(success)
         End Sub
-        <UnitTest>
+        <InteractiveTest>
         <TestMethod()>
         Public Sub ImageUtils_ResizeImage_width_height_padding_Grow_WithGreenPaddingSides()
             'Arrange
@@ -770,7 +700,7 @@ Namespace EmberTests
             'Assert
             Assert.IsNull(source.Image, "Expected Nothing, got something else")
         End Sub
-        <UnitTest>
+        <InteractiveTest>
         <TestMethod()>
         Public Sub ImageUtils_SetGlassOverlay_NormalImage_Horizontal()
             'Arrange
@@ -790,7 +720,7 @@ Namespace EmberTests
             'Assert
             Assert.IsTrue(userResponse = Windows.Forms.DialogResult.Yes, "User disagreed")
         End Sub
-        <UnitTest>
+        <InteractiveTest>
         <TestMethod()>
         Public Sub ImageUtils_SetGlassOverlay_NormalImage_Vertical()
             'Arrange
@@ -814,8 +744,7 @@ Namespace EmberTests
         <TestMethod()>
         Public Sub ImageUtils_SetOverlay_NothingImage()
             'Arrange
-            Dim overlay As Image = Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "HasLanguage.png"))
-            'Act
+            Dim overlay As Image = Image.FromFile(Path.Combine(Functions.AppPath, "Images", "Defaults", "HasLanguage.png"))            'Act
             Dim result As Image = ImageUtils.SetOverlay(Nothing, 500, 500, overlay, 1)
 
             'Assert
@@ -827,7 +756,7 @@ Namespace EmberTests
             'Arrange
             Dim userResponse As Windows.Forms.DialogResult = Nothing
             Using img As Image = My.Resources.TestPattern, _
-                overlay As Image = Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "HasLanguage.png"))
+                overlay As Image = Image.FromFile(Path.Combine(Functions.AppPath, "Images", "Defaults", "HasLanguage.png"))
 
                 'Act
                 Using result As Image = ImageUtils.SetOverlay(img, img.Width \ 2, img.Height \ 2, overlay, 1)
@@ -848,7 +777,7 @@ Namespace EmberTests
             'Arrange
             Dim userResponse As Windows.Forms.DialogResult = Nothing
             Using img As Image = My.Resources.TestPattern, _
-                overlay As Image = Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "HasLanguage.png"))
+                overlay As Image = Image.FromFile(Path.Combine(Functions.AppPath, "Images", "Defaults", "HasLanguage.png"))
 
                 'Act
                 Using result As Image = ImageUtils.SetOverlay(img, img.Width \ 2, img.Height \ 2, overlay, 2)
@@ -868,7 +797,7 @@ Namespace EmberTests
             'Arrange
             Dim userResponse As Windows.Forms.DialogResult = Nothing
             Using img As Image = My.Resources.TestPattern, _
-                overlay As Image = Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "HasLanguage.png"))
+                overlay As Image = Image.FromFile(Path.Combine(Functions.AppPath, "Images", "Defaults", "HasLanguage.png"))
 
                 'Act
                 Using result As Image = ImageUtils.SetOverlay(img, img.Width \ 2, img.Height \ 2, overlay, 3)
@@ -889,7 +818,7 @@ Namespace EmberTests
             'Arrange
             Dim userResponse As Windows.Forms.DialogResult = Nothing
             Using img As Image = My.Resources.TestPattern, _
-                overlay As Image = Image.FromFile(FileUtils.Common.ReturnSettingsFile("Images\Defaults", "HasLanguage.png"))
+                overlay As Image = Image.FromFile(Path.Combine(Functions.AppPath, "Images", "Defaults", "HasLanguage.png"))
                 'Act
                 Using result As Image = ImageUtils.SetOverlay(img, img.Width \ 2, img.Height \ 2, overlay, 4)
                     'result.Save("TestPatternWithLanguage_Bottom_Right.png", System.Drawing.Imaging.ImageFormat.Png)
@@ -913,139 +842,164 @@ Namespace EmberTests
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub ImageUtils_ResizeImage_image_size_NothingImage()
+        Public Sub ImageUtils_ResizeImage_image_maxWidth_maxHeight_NothingImage()
             'Arrange
             Dim success As Boolean = False
+            Dim image As Image = Nothing
 
-            Using source As Image = Nothing
-                Dim size As Size = New Size(100, 400)
-                'Act
-                Using result As Image = ImageUtils.ResizeImage(source, size)
-                    success = result Is Nothing
-                End Using
+            Dim maxWidth As Integer = 100
+            Dim maxHeight As Integer = 400
 
-            End Using
+            'Act
+            'ResizeImage arbeitet direkt auf dem uebergebenen Bild (ByRef) und gibt nichts zurueck.
+            ImageUtils.ResizeImage(image, maxWidth, maxHeight)
+            success = image Is Nothing
 
             'Assert
-            Assert.IsTrue(success)
+            Assert.IsTrue(success, "Bei einem Nothing-Bild darf nichts veraendert werden")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub ImageUtils_ResizeImage_image_size_NothingSize()
+        Public Sub ImageUtils_ResizeImage_image_maxWidth_maxHeight_NothingSize()
             'Arrange
+            'Die Zielgroesse kann heute kein Nothing sein (Integer-Parameter).
+            '0 x 0 ist die kleinste ungueltige Angabe - das Bild muss unveraendert bleiben.
             Dim success As Boolean = False
-            Using source As Image = My.Resources.TestPattern
-                Dim size As Size = Nothing
-                'Act
-                Using result As Image = ImageUtils.ResizeImage(source, size)
+            Dim image As Image = New Bitmap(My.Resources.TestPattern)
+            Dim originalWidth As Integer = image.Width
+            Dim originalHeight As Integer = image.Height
 
-                    If result Is Nothing Then Assert.Fail()
-                    Dim widthOK = result.Width = source.Width
-                    Dim heightOK = result.Height = source.Height
-                    success = widthOK And heightOK
-                End Using
-            End Using
+            Dim maxWidth As Integer = 0
+            Dim maxHeight As Integer = 0
+
+            'Act
+            ImageUtils.ResizeImage(image, maxWidth, maxHeight)
+
             'Assert
-            Assert.IsTrue(success)
+            Dim widthOK = image.Width = originalWidth
+            Dim heightOK = image.Height = originalHeight
+            success = widthOK And heightOK
+            image.Dispose()
+            image = Nothing
+
+            Assert.IsTrue(success, "Bei einer ungueltigen Zielgroesse darf das Bild nicht veraendert werden")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub ImageUtils_ResizeImage_image_size_ZeroSize()
+        Public Sub ImageUtils_ResizeImage_image_maxWidth_maxHeight_ZeroSize()
             'Arrange
+            'Eine Breite von 0 ist ungueltig - das Bild muss unveraendert bleiben.
             Dim success As Boolean = False
-            Using source As Image = My.Resources.TestPattern
-                Dim size As Size = New Size(0, 0)
-                'Act
-                Using result As Image = ImageUtils.ResizeImage(source, size)
+            Dim image As Image = New Bitmap(My.Resources.TestPattern)
+            Dim originalWidth As Integer = image.Width
+            Dim originalHeight As Integer = image.Height
 
-                    If result Is Nothing Then Assert.Fail()
-                    Dim widthOK = result.Width = source.Width
-                    Dim heightOK = result.Height = source.Height
-                    success = widthOK And heightOK
-                End Using
-            End Using
+            Dim maxWidth As Integer = 0
+            Dim maxHeight As Integer = 200
+
+            'Act
+            ImageUtils.ResizeImage(image, maxWidth, maxHeight)
+
             'Assert
-            Assert.IsTrue(success)
+            Dim widthOK = image.Width = originalWidth
+            Dim heightOK = image.Height = originalHeight
+            success = widthOK And heightOK
+            image.Dispose()
+            image = Nothing
+
+            Assert.IsTrue(success, "Bei einer Breite von 0 darf das Bild nicht veraendert werden")
         End Sub
         <UnitTest>
         <TestMethod()>
-        Public Sub ImageUtils_ResizeImage_image_size_NegativeSize()
+        Public Sub ImageUtils_ResizeImage_image_maxWidth_maxHeight_NegativeSize()
             'Arrange
+            'Negative Zielgroessen sind ungueltig - das Bild muss unveraendert bleiben.
             Dim success As Boolean = False
-            Using source As Image = My.Resources.TestPattern
-                Dim size As Size = New Size(-200, -200)
-                'Act
-                Using result As Image = ImageUtils.ResizeImage(source, size)
+            Dim image As Image = New Bitmap(My.Resources.TestPattern)
+            Dim originalWidth As Integer = image.Width
+            Dim originalHeight As Integer = image.Height
 
-                    If result Is Nothing Then Assert.Fail()
-                    Dim widthOK = result.Width = source.Width
-                    Dim heightOK = result.Height = source.Height
-                    success = widthOK And heightOK
-                End Using
-            End Using
+            Dim maxWidth As Integer = -200
+            Dim maxHeight As Integer = -200
+
+            'Act
+            ImageUtils.ResizeImage(image, maxWidth, maxHeight)
+
             'Assert
+            Dim widthOK = image.Width = originalWidth
+            Dim heightOK = image.Height = originalHeight
+            success = widthOK And heightOK
+            image.Dispose()
+            image = Nothing
+
+            Assert.IsTrue(success, "Bei negativer Zielgroesse darf das Bild nicht veraendert werden")
+        End Sub
+        <InteractiveTest>
+        <TestMethod()>
+        Public Sub ImageUtils_ResizeImage_image_maxWidth_maxHeight_Tall()
+            'Arrange
+            'Schmales Zielformat (100 x 400). Das Querformat-Bild wird nach Breite skaliert.
+            Dim success As Boolean = False
+            Dim image As Image = New Bitmap(My.Resources.TestPattern)
+            Dim size As Size = New Size(100, 400)
+
+            'Act
+            ImageUtils.ResizeImage(image, size.Width, size.Height)
+
+            'Assert
+            If image Is Nothing Then Assert.Fail()
+            'ResizeImage skaaliert proportional, damit das Bild in die Zielgroesse passt -
+            'es darf dabei nicht gestreckt werden.
+            Dim widthOK = image.Width <= size.Width
+            Dim heightOK = image.Height <= size.Height
+            Dim scaleOK = (image.Width = size.Width) OrElse (image.Height = size.Height)
+
+            Dim visualOK = False
+            Using dialog = New ImageFeedback()
+                dialog.LoadInfo(image, "Is this image squished or stretched?")
+
+                Dim userResponse = dialog.ShowDialog()
+                visualOK = userResponse = Windows.Forms.DialogResult.No    'No means it is not stretched
+            End Using
+            success = widthOK And heightOK And scaleOK And visualOK
+            image.Dispose()
+            image = Nothing
+
             Assert.IsTrue(success)
         End Sub
         <InteractiveTest>
         <TestMethod()>
-        Public Sub ImageUtils_ResizeImage_image_sizeTall()
+        Public Sub ImageUtils_ResizeImage_image_maxWidth_maxHeight_Wide()
             'Arrange
+            'Breites Zielformat (400 x 100). Das Hochformat-Bild wird nach Hoehe skaliert.
             Dim success As Boolean = False
-            Using source As Image = My.Resources.TestPattern
-                Dim size As Size = New Size(100, 400)
-                'Act
-                Using result As Image = ImageUtils.ResizeImage(source, size)
+            Dim image As Image = New Bitmap(My.Resources.TestPattern_Vert)
+            Dim size As Size = New Size(400, 100)
 
-                    'Assert
-                    If result Is Nothing Then Assert.Fail()
-                    Dim widthOK = result.Width <= size.Width
-                    Dim heightOK = result.Height <= size.Height
-                    Dim scaleOK = (result.Width = size.Width) OrElse (result.Height = size.Height)
+            'Act
+            ImageUtils.ResizeImage(image, size.Width, size.Height)
 
-                    Dim visualOK = False
-                    Using dialog = New ImageFeedback()
-                        dialog.LoadInfo(result, "Is this image squished or stretched?")
+            'Assert
+            If image Is Nothing Then Assert.Fail()
+            Dim widthOK = image.Width <= size.Width
+            Dim heightOK = image.Height <= size.Height
+            Dim scaleOK = (image.Width = size.Width) OrElse (image.Height = size.Height)
 
-                        Dim userResponse = dialog.ShowDialog()
-                        visualOK = userResponse = Windows.Forms.DialogResult.No    'No means it is not stretched
-                    End Using
-                    success = widthOK And heightOK And scaleOK And visualOK
-                End Using
+            Dim visualOK = False
+            Using dialog = New ImageFeedback()
+                dialog.LoadInfo(image, "Is this image squished or stretched?")
+
+                Dim userResponse = dialog.ShowDialog()
+                visualOK = userResponse = Windows.Forms.DialogResult.No    'No means it is not stretched
             End Using
+            success = widthOK And heightOK And scaleOK And visualOK
+            image.Dispose()
+            image = Nothing
 
             Assert.IsTrue(success)
         End Sub
+
         <InteractiveTest>
-        <TestMethod()>
-        Public Sub ImageUtils_ResizeImage_image_sizeWide()
-            'Arrange
-            Dim success As Boolean = False
-            Using source As Image = My.Resources.TestPattern
-                Dim size As Size = New Size(400, 100)
-                'Act
-                Using result As Image = ImageUtils.ResizeImage(source, size)
-
-                    'Assert
-                    If result Is Nothing Then Assert.Fail()
-                    Dim widthOK = result.Width <= size.Width
-                    Dim heightOK = result.Height <= size.Height
-                    Dim scaleOK = (result.Width = size.Width) OrElse (result.Height = size.Height)
-
-                    Dim visualOK = False
-                    Using dialog = New ImageFeedback()
-                        dialog.LoadInfo(result, "Is this image squished or stretched?")
-
-                        Dim userResponse = dialog.ShowDialog()
-                        visualOK = userResponse = Windows.Forms.DialogResult.No    'No means it is not stretched
-                    End Using
-                    success = widthOK And heightOK And scaleOK And visualOK
-                End Using
-            End Using
-
-            Assert.IsTrue(success)
-        End Sub
-
-        <UnitTest>
         <TestMethod()>
         Public Sub ImageUtils_AddGenreString()
             'Arrange

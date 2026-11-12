@@ -343,6 +343,9 @@
     <Compile Include="dlgRestart.vb">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="dlgScanProgress.vb">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="dlgSettings.Designer.vb">
       <DependentUpon>dlgSettings.vb</DependentUpon>
     </Compile>

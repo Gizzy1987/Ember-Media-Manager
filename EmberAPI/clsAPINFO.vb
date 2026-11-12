@@ -974,7 +974,25 @@ Public Class NFO
         '    PreviewDataScraperResults(ScrapedList)
         'End If
 
-        For Each scrapedepisode In ScrapedList
+        'Die Scraper-Treffer auf die Episode eingrenzen, die zum lokalen Eintrag passt.
+        'Ohne passenden Treffer wird nichts uebernommen - sonst wuerden die Daten einer
+        'falschen Episode (gleiche Staffel-/Folgenummer) uebernommen.
+        Dim lScraped As List(Of MediaContainers.EpisodeDetails) =
+            WaehlePassendeEpisodeDetails(If(DBTVEpisode.TVEpisode.TitleSpecified, DBTVEpisode.TVEpisode.Title, String.Empty),
+                                         DBTVEpisode.TVEpisode.Aired,
+                                         ScrapedList)
+
+        If lScraped.Count = 0 AndAlso ScrapedList IsNot Nothing AndAlso ScrapedList.Count > 0 Then
+            Dim strScrapedTitel As String = String.Join(", ", ScrapedList.Select(Function(f) If(f Is Nothing, String.Empty, f.Title)).ToArray())
+            logger.Trace(String.Format("[TVMerge] S{0}E{1} -> Zuordnung verworfen | lokaler Titel: '{2}' | lokales Datum: '{3}' | Scraped-Titel: {4}",
+                                        DBTVEpisode.TVEpisode.Season,
+                                        DBTVEpisode.TVEpisode.Episode,
+                                        DBTVEpisode.TVEpisode.Title,
+                                        DBTVEpisode.TVEpisode.Aired,
+                                        strScrapedTitel))
+        End If
+
+        For Each scrapedepisode In lScraped
 
             'UniqueIDs
             If scrapedepisode.UniqueIDsSpecified Then
@@ -1100,7 +1118,8 @@ Public Class NFO
 
             'Title
             If (Not DBTVEpisode.TVEpisode.TitleSpecified OrElse Not Master.eSettings.TVLockEpisodeTitle) AndAlso ScrapeOptions.bEpisodeTitle AndAlso
-               scrapedepisode.TitleSpecified AndAlso Master.eSettings.TVScraperEpisodeTitle AndAlso Not new_Title Then
+               scrapedepisode.TitleSpecified AndAlso Master.eSettings.TVScraperEpisodeTitle AndAlso Not new_Title AndAlso
+               DarfEpisodenTitelErsetztWerden(DBTVEpisode.TVEpisode.Title, scrapedepisode.Title) Then
                 DBTVEpisode.TVEpisode.Title = scrapedepisode.Title
                 new_Title = True
             ElseIf Master.eSettings.TVScraperCleanFields AndAlso Not Master.eSettings.TVScraperEpisodeTitle AndAlso Not Master.eSettings.TVLockEpisodeTitle Then
@@ -1189,6 +1208,137 @@ Public Class NFO
         End If
 
         Return DBTVEpisode
+    End Function
+
+    ''' <summary>
+    ''' Waehlt aus den Scraper-Treffern zu einer Episode diejenigen aus, die zum lokalen Episodeneintrag passen.
+    ''' </summary>
+    ''' <param name="lokalerTitel">Titel des lokalen Episodeneintrags (darf leer sein)</param>
+    ''' <param name="lokalesAired">Ausstrahlungsdatum des lokalen Episodeneintrags (darf leer sein)</param>
+    ''' <param name="ScrapedList">Alle Scraper-Treffer zu dieser Episode</param>
+    ''' <returns>
+    ''' Die zum lokalen Eintrag passenden Treffer, der beste zuerst. Ist die Liste leer,
+    ''' passt kein Treffer zum lokalen Eintrag und es darf nichts uebernommen werden.
+    ''' </returns>
+    ''' <remarks>
+    ''' Ohne lokalen Titel und ohne lokales Datum gibt es keine Auswahlkriterien, dann
+    ''' bleiben alle Treffer unveraendert erhalten.
+    ''' </remarks>
+    Public Shared Function WaehlePassendeEpisodeDetails(ByVal lokalerTitel As String,
+                                                         ByVal lokalesAired As String,
+                                                         ByVal ScrapedList As List(Of MediaContainers.EpisodeDetails)) As List(Of MediaContainers.EpisodeDetails)
+        Dim lErgebnis As New List(Of MediaContainers.EpisodeDetails)
+
+        If ScrapedList Is Nothing OrElse ScrapedList.Count = 0 Then Return lErgebnis
+
+        Dim strTitel As String = If(String.IsNullOrEmpty(lokalerTitel), String.Empty, lokalerTitel).Trim
+        Dim strAired As String = NormalizeAiredDateForMatch(lokalesAired)
+
+        Dim bTitelVorhanden As Boolean = Not String.IsNullOrEmpty(strTitel)
+        Dim bAiredVorhanden As Boolean = Not String.IsNullOrEmpty(strAired)
+
+        'Ohne Titel und ohne Datum laesst sich nichts unterscheiden - dann alle Treffer behalten
+        If Not bTitelVorhanden AndAlso Not bAiredVorhanden Then
+            lErgebnis.AddRange(ScrapedList)
+            Return lErgebnis
+        End If
+
+        Dim lTreffer As New List(Of MediaContainers.EpisodeDetails)
+        Dim nBesterTreffer As MediaContainers.EpisodeDetails = Nothing
+        Dim iBestePunkte As Integer = -1
+
+        For Each nScraped As MediaContainers.EpisodeDetails In ScrapedList
+            If nScraped Is Nothing Then Continue For
+
+            '0 = exakt, 1 = Titel enthaelt den anderen Titel, -1 = passt nicht
+            Dim iTitelLevel As Integer = -1
+            If bTitelVorhanden AndAlso Not String.IsNullOrEmpty(nScraped.Title) Then
+                iTitelLevel = StringUtils.GetTitleMatchLevel(strTitel, nScraped.Title)
+            End If
+
+            Dim bAiredPasst As Boolean = bAiredVorhanden AndAlso Not String.IsNullOrEmpty(nScraped.Aired) AndAlso
+                                        NormalizeAiredDateForMatch(nScraped.Aired) = strAired
+
+            'Ein Treffer passt, wenn der Titel oder das Datum zum lokalen Eintrag passt
+            If iTitelLevel < 0 AndAlso Not bAiredPasst Then Continue For
+
+            'Der exakte Titel ist die genauere Identitaet als das Datum, deshalb zaehlt er mehr
+            Dim iPunkte As Integer = 0
+            If iTitelLevel = 0 Then
+                iPunkte = 100
+            ElseIf iTitelLevel = 1 Then
+                iPunkte = 80
+            End If
+            If bAiredPasst Then iPunkte += 10
+
+            lTreffer.Add(nScraped)
+            If iPunkte > iBestePunkte Then
+                iBestePunkte = iPunkte
+                nBesterTreffer = nScraped
+            End If
+        Next
+
+        'Kein Treffer passt zum lokalen Eintrag
+        If nBesterTreffer Is Nothing Then Return lErgebnis
+
+        'Der beste Treffer zuerst, die restlichen passenden Treffer danach
+        lErgebnis.Add(nBesterTreffer)
+        For Each nScraped As MediaContainers.EpisodeDetails In lTreffer
+            If Not Object.ReferenceEquals(nScraped, nBesterTreffer) Then lErgebnis.Add(nScraped)
+        Next
+
+        Return lErgebnis
+    End Function
+
+    ''' <summary>
+    ''' Bringt ein Ausstrahlungsdatum auf das Format yyyy-MM-dd, damit Angaben aus
+    ''' verschiedenen Quellen verglichen werden koennen.
+    ''' </summary>
+    ''' <param name="value">Datum in beliebiger Schreibweise</param>
+    ''' <returns>Das Datum im Format yyyy-MM-dd oder der Originalwert, wenn es nicht erkannt wird</returns>
+    Private Shared Function NormalizeAiredDateForMatch(ByVal value As String) As String
+        If String.IsNullOrEmpty(value) Then Return String.Empty
+
+        Dim strValue As String = value.Trim
+        If strValue.Length = 0 Then Return String.Empty
+
+        Dim formate As String() = {"yyyy-MM-dd", "yyyy-MM-ddTHH:mm:ss", "yyyy-MM-dd HH:mm:ss",
+                                   "dd.MM.yyyy", "dd.MM.yyyyTHH:mm:ss", "dd.MM.yyyyTHH:mm:ss",
+                                   "MM/dd/yyyy"}
+
+        Dim parsedDate As Date
+        If Date.TryParseExact(strValue, formate, Globalization.CultureInfo.InvariantCulture,
+                              Globalization.DateTimeStyles.None, parsedDate) Then
+            Return parsedDate.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+        End If
+
+        If Date.TryParse(strValue, Globalization.CultureInfo.InvariantCulture,
+                         Globalization.DateTimeStyles.None, parsedDate) Then
+            Return parsedDate.ToString("yyyy-MM-dd", Globalization.CultureInfo.InvariantCulture)
+        End If
+
+        'Wenn das Datum nicht erkannt wird, wird der Originalwert verwendet
+        Return strValue
+    End Function
+
+    ''' <summary>
+    ''' Prueft, ob ein Scraped-Titel den lokalen Episodentitel ersetzen darf.
+    ''' </summary>
+    ''' <param name="lokalerTitel">Titel des lokalen Episodeneintrags</param>
+    ''' <param name="neuerTitel">Titel aus dem Scraper-Ergebnis</param>
+    ''' <returns>
+    ''' True, wenn der lokale Titel nicht gesetzt ist oder der neue Titel zum lokalen Titel passt.
+    ''' </returns>
+    ''' <remarks>
+    ''' Ein Titel, der nur aus der Dateiname-Erkennung stammt (z.B. "Doctor Who S07E14"),
+    ''' gilt nicht als gesetzter Titel.
+    ''' </remarks>
+    Public Shared Function DarfEpisodenTitelErsetztWerden(ByVal lokalerTitel As String, ByVal neuerTitel As String) As Boolean
+        If String.IsNullOrEmpty(lokalerTitel) Then Return True
+        If Regex.IsMatch(lokalerTitel, "s\d{2}e\d{2}$", RegexOptions.IgnoreCase) Then Return True
+        If String.IsNullOrEmpty(neuerTitel) Then Return False
+
+        Return StringUtils.IsTitleMatch(lokalerTitel, neuerTitel)
     End Function
 
     Public Shared Function CleanNFO_Movies(ByVal mNFO As MediaContainers.Movie) As MediaContainers.Movie

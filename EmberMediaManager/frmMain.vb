@@ -90,6 +90,7 @@ Public Class frmMain
     Private GenreImage As Image
     Private InfoCleared As Boolean = False
     Private LoadingDone As Boolean = False
+    Private _scanDialog As dlgScanProgress
     Private MainActors As New Images
     Private MainBackground As New Images
     Private MainBanner As New Images
@@ -6252,10 +6253,10 @@ Public Class frmMain
             ) AndAlso e.RowIndex >= 0 Then
             If Convert.ToBoolean(dgvMovies.Item("New", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.New.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvMovies.Item("Mark", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvMovies.Item("MarkCustom1", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = Color.FromArgb(Master.eSettings.MovieGeneralCustomMarker1Color)
                 e.CellStyle.SelectionForeColor = Color.FromArgb(Master.eSettings.MovieGeneralCustomMarker1Color)
@@ -6271,7 +6272,7 @@ Public Class frmMain
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
                 e.CellStyle.Font = DefaultListFont
-                e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Default.ReadableSelectionColor()
             End If
         End If
 
@@ -6909,14 +6910,14 @@ Public Class frmMain
             ) AndAlso e.RowIndex >= 0 Then
             If Convert.ToBoolean(dgvMovieSets.Item("New", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.New.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvMovieSets.Item("Mark", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.ReadableSelectionColor()
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
                 e.CellStyle.Font = DefaultListFont
-                e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Default.ReadableSelectionColor()
             End If
         End If
 
@@ -7408,17 +7409,17 @@ Public Class frmMain
             ) AndAlso e.RowIndex >= 0 Then
             If Convert.ToInt64(dgvTVEpisodes.Item("idFile", e.RowIndex).Value) = -1 Then
                 e.CellStyle.ForeColor = MediaListColors.Missing.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Missing.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Missing.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvTVEpisodes.Item("New", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.New.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvTVEpisodes.Item("Mark", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.ReadableSelectionColor()
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
                 e.CellStyle.Font = DefaultListFont
-                e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Default.ReadableSelectionColor()
             End If
         End If
 
@@ -7899,18 +7900,18 @@ Public Class frmMain
             ) AndAlso e.RowIndex >= 0 Then
             If Convert.ToBoolean(dgvTVSeasons.Item("Missing", e.RowIndex).Value) AndAlso Not CInt(dgvTVSeasons.Item("Season", e.RowIndex).Value) = -1 Then
                 e.CellStyle.ForeColor = MediaListColors.Missing.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Missing.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Missing.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvTVSeasons.Item("New", e.RowIndex).Value) OrElse
                 Not String.IsNullOrEmpty(dgvTVSeasons.Item("NewEpisodes", e.RowIndex).Value.ToString) AndAlso CInt(dgvTVSeasons.Item("NewEpisodes", e.RowIndex).Value) > 0 Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.New.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvTVSeasons.Item("Mark", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.ReadableSelectionColor()
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
                 e.CellStyle.Font = DefaultListFont
-                e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Default.ReadableSelectionColor()
             End If
         End If
 
@@ -8449,14 +8450,14 @@ Public Class frmMain
             If Convert.ToBoolean(dgvTVShows.Item("New", e.RowIndex).Value) OrElse
                 Not String.IsNullOrEmpty(dgvTVShows.Item("NewEpisodes", e.RowIndex).Value.ToString) AndAlso CInt(dgvTVShows.Item("NewEpisodes", e.RowIndex).Value) > 0 Then
                 e.CellStyle.ForeColor = MediaListColors.New.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.New.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.New.ReadableSelectionColor()
             ElseIf Convert.ToBoolean(dgvTVShows.Item("Mark", e.RowIndex).Value) Then
                 e.CellStyle.ForeColor = MediaListColors.Marked.ForeColor
-                e.CellStyle.SelectionForeColor = MediaListColors.Marked.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Marked.ReadableSelectionColor()
             Else
                 e.CellStyle.ForeColor = MediaListColors.Default.ForeColor
                 e.CellStyle.Font = DefaultListFont
-                e.CellStyle.SelectionForeColor = MediaListColors.Default.SelectionForeColor
+                e.CellStyle.SelectionForeColor = MediaListColors.Default.ReadableSelectionColor()
             End If
         End If
 
@@ -10812,8 +10813,15 @@ Public Class frmMain
             If Not alActors.Item(lstActors.SelectedIndex).ToString.Trim.StartsWith("http") Then
                 MainActors.LoadFromFile(alActors.Item(lstActors.SelectedIndex).ToString, True)
 
-                If MainActors.Image IsNot Nothing Then
-                    pbActors.Image = MainActors.Image
+                'Das Image wird aus dem Container herausgeloest: die PictureBox
+                'uebernimmt die Verfuegung. Andernfalls wuerde ein spaeteres
+                'MainActors.Clear() das Image freigeben, waehrend die PictureBox
+                'es noch anzeigt - der Paint auf ein freigegebenes Image
+                'laesst Image.get_Width fehlschlagen und reisst das Programm ab.
+                Dim actorImage As Image = MainActors.ReleaseImage()
+
+                If actorImage IsNot Nothing Then
+                    pbActors.Image = actorImage
                 Else
                     pbActors.Image = My.Resources.actor_silhouette
                 End If
@@ -13259,11 +13267,45 @@ Public Class frmMain
         ResumeLayout()
     End Sub
 
+    ''' <summary>
+    ''' Weist einer Cache-PictureBox das Image zu und gibt das bisherige Image frei.
+    ''' </summary>
+    ''' <remarks>
+    ''' Die Cache-Boxen duerfen das Image des Containers NICHT einfach
+    ''' uebernehmen: der Container gibt sein Image beim Clear() frei, und die
+    ''' PictureBox wuerde danach ein disposed Image anzeigen. Ein Paint auf ein
+    ''' solches Image laesst Image.get_Width mit "Ungueltiger Parameter"
+    ''' fehlschlagen und reisst das Programm ab (Absturz vom 10.11.2026).
+    '''
+    ''' Deshalb bekommt die Cache-Box eine eigene Kopie und gibt ihr altes
+    ''' Image frei. Das Image des Containers bleibt unberuehrt.
+    ''' </remarks>
+    Private Sub SetCacheImage(ByRef pbCache As PictureBox, ByVal sourceImage As Image)
+        If pbCache Is Nothing Then Return
+
+        Dim oldImage As Image = pbCache.Image
+        pbCache.Image = Nothing
+
+        If oldImage IsNot Nothing AndAlso Not Object.ReferenceEquals(oldImage, sourceImage) Then
+            oldImage.Dispose()
+        End If
+
+        If sourceImage Is Nothing Then Return
+
+        Try
+            pbCache.Image = New Bitmap(sourceImage)
+        Catch ex As Exception
+            'Kann der Quelle nicht zugegriffen werden (z.B. weil der
+            'Container parallel geleert wurde) - dann bleibt die Box leer.
+            pbCache.Image = Nothing
+        End Try
+    End Sub
+
     Private Sub InfoScreen_Show_Images()
         'Poster
         If MainPoster.Image IsNot Nothing OrElse MainPoster.LoadFromMemoryStream Then
             lblPosterSize.Text = String.Format("{0} x {1}", MainPoster.Image.Width, MainPoster.Image.Height)
-            pbPosterCache.Image = MainPoster.Image
+            SetCacheImage(pbPosterCache, MainPoster.Image)
             ImageUtils.ResizePB(pbPoster, pbPosterCache, PosterMaxHeight, PosterMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbPoster)
 
@@ -13288,7 +13330,7 @@ Public Class frmMain
         'Keyart
         If MainKeyart.Image IsNot Nothing OrElse MainKeyart.LoadFromMemoryStream Then
             lblKeyartSize.Text = String.Format("{0} x {1}", MainKeyart.Image.Width, MainKeyart.Image.Height)
-            pbKeyartCache.Image = MainKeyart.Image
+            SetCacheImage(pbKeyartCache, MainKeyart.Image)
             ImageUtils.ResizePB(pbKeyart, pbKeyartCache, KeyartMaxHeight, KeyartMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbKeyart)
 
@@ -13313,7 +13355,7 @@ Public Class frmMain
         'Fanart
         If MainFanart.Image IsNot Nothing OrElse MainFanart.LoadFromMemoryStream Then
             lblFanartSmallSize.Text = String.Format("{0} x {1}", MainFanart.Image.Width, MainFanart.Image.Height)
-            pbFanartSmallCache.Image = MainFanart.Image
+            SetCacheImage(pbFanartSmallCache, MainFanart.Image)
             ImageUtils.ResizePB(pbFanartSmall, pbFanartSmallCache, FanartSmallMaxHeight, FanartSmallMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbFanartSmall)
 
@@ -13338,7 +13380,7 @@ Public Class frmMain
         'Landscape
         If MainLandscape.Image IsNot Nothing OrElse MainLandscape.LoadFromMemoryStream Then
             lblLandscapeSize.Text = String.Format("{0} x {1}", MainLandscape.Image.Width, MainLandscape.Image.Height)
-            pbLandscapeCache.Image = MainLandscape.Image
+            SetCacheImage(pbLandscapeCache, MainLandscape.Image)
             ImageUtils.ResizePB(pbLandscape, pbLandscapeCache, LandscapeMaxHeight, LandscapeMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbLandscape)
 
@@ -13363,7 +13405,7 @@ Public Class frmMain
         'ClearArt
         If MainClearArt.Image IsNot Nothing OrElse MainClearArt.LoadFromMemoryStream Then
             lblClearArtSize.Text = String.Format("{0} x {1}", MainClearArt.Image.Width, MainClearArt.Image.Height)
-            pbClearArtCache.Image = MainClearArt.Image
+            SetCacheImage(pbClearArtCache, MainClearArt.Image)
             ImageUtils.ResizePB(pbClearArt, pbClearArtCache, ClearArtMaxHeight, ClearArtMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbClearArt)
 
@@ -13388,7 +13430,7 @@ Public Class frmMain
         'CharacterArt
         If MainCharacterArt.Image IsNot Nothing OrElse MainCharacterArt.LoadFromMemoryStream Then
             lblCharacterArtSize.Text = String.Format("{0} x {1}", MainCharacterArt.Image.Width, MainCharacterArt.Image.Height)
-            pbCharacterArtCache.Image = MainCharacterArt.Image
+            SetCacheImage(pbCharacterArtCache, MainCharacterArt.Image)
             ImageUtils.ResizePB(pbCharacterArt, pbCharacterArtCache, CharacterArtMaxHeight, CharacterArtMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbCharacterArt)
 
@@ -13413,7 +13455,7 @@ Public Class frmMain
         'DiscArt
         If MainDiscArt.Image IsNot Nothing OrElse MainDiscArt.LoadFromMemoryStream Then
             lblDiscArtSize.Text = String.Format("{0} x {1}", MainDiscArt.Image.Width, MainDiscArt.Image.Height)
-            pbDiscArtCache.Image = MainDiscArt.Image
+            SetCacheImage(pbDiscArtCache, MainDiscArt.Image)
             ImageUtils.ResizePB(pbDiscArt, pbDiscArtCache, DiscArtMaxHeight, DiscArtMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbDiscArt)
 
@@ -13438,7 +13480,7 @@ Public Class frmMain
         'Banner
         If MainBanner.Image IsNot Nothing OrElse MainBanner.LoadFromMemoryStream Then
             lblBannerSize.Text = String.Format("{0} x {1}", MainBanner.Image.Width, MainBanner.Image.Height)
-            pbBannerCache.Image = MainBanner.Image
+            SetCacheImage(pbBannerCache, MainBanner.Image)
             ImageUtils.ResizePB(pbBanner, pbBannerCache, BannerMaxHeight, BannerMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbBanner)
 
@@ -13463,7 +13505,7 @@ Public Class frmMain
         'ClearLogo
         If MainClearLogo.Image IsNot Nothing OrElse MainClearLogo.LoadFromMemoryStream Then
             lblClearLogoSize.Text = String.Format("{0} x {1}", MainClearLogo.Image.Width, MainClearLogo.Image.Height)
-            pbClearLogoCache.Image = MainClearLogo.Image
+            SetCacheImage(pbClearLogoCache, MainClearLogo.Image)
             ImageUtils.ResizePB(pbClearLogo, pbClearLogoCache, ClearLogoMaxHeight, ClearLogoMaxWidth)
             If Master.eSettings.GeneralImagesGlassOverlay Then ImageUtils.SetGlassOverlay(pbClearLogo)
 
@@ -13487,7 +13529,7 @@ Public Class frmMain
 
         'Background
         If MainBackground.Image IsNot Nothing OrElse MainBackground.LoadFromMemoryStream Then
-            pbBackgroundCache.Image = MainBackground.Image
+            SetCacheImage(pbBackgroundCache, MainBackground.Image)
             ImageUtils.ResizePB(pbBackground, pbBackgroundCache, scMain.Panel2.Height - (pnlTop.Top + pnlTop.Height), scMain.Panel2.Width, True)
             pbBackground.Left = Convert.ToInt32((scMain.Panel2.Width - pbBackground.Width) / 2)
             pbBackground.Top = pnlTop.Top + pnlTop.Height
@@ -14486,6 +14528,7 @@ Public Class frmMain
 
     Public Sub Scanner_LoadMedia(ByVal options As Structures.ScanOrClean, Optional ByVal sourceIDs As List(Of Long) = Nothing, Optional ByVal specifiedFolder As String = "")
         Try
+            ShowScanDialog()
             SetStatus(Master.eLang.GetString(116, "Performing Preliminary Tasks (Gathering Data)..."))
             tspbLoading.ProgressBar.Style = ProgressBarStyle.Marquee
             tspbLoading.Visible = True
@@ -14517,18 +14560,27 @@ Public Class frmMain
         Select Case eProgressValue.EventType
             Case Enums.ScannerEventType.Added_Movie
                 SetStatus(String.Concat(String.Concat(Master.eLang.GetString(815, "Added Movie"), ":"), " ", eProgressValue.Message))
+                SetScanStatus(eProgressValue.Message)
+                AddFoundToScanDialog(Master.eLang.GetString(1750, "movie"), eProgressValue.Message)
                 DataGridView_Row_Add_Movie(eProgressValue.ID)
             Case Enums.ScannerEventType.Added_TVEpisode
                 SetStatus(String.Concat(String.Concat(Master.eLang.GetString(814, "Added Episode"), ":"), " ", eProgressValue.Message))
+                SetScanStatus(eProgressValue.Message)
+                AddFoundToScanDialog(Master.eLang.GetString(1754, "episode"), eProgressValue.Message)
             Case Enums.ScannerEventType.Added_TVShow
                 SetStatus(String.Concat(String.Concat(Master.eLang.GetString(1089, "Added TV Show"), ":"), " ", eProgressValue.Message))
+                SetScanStatus(eProgressValue.Message)
+                AddFoundToScanDialog(Master.eLang.GetString(1758, "TV show"), eProgressValue.Message)
                 DataGridView_Row_Add_TVShow(eProgressValue.ID)
             Case Enums.ScannerEventType.CleaningDatabase
                 SetStatus(Master.eLang.GetString(644, "Cleaning Database..."))
+                SetScanStatus(Master.eLang.GetString(644, "Cleaning Database..."))
             Case Enums.ScannerEventType.CurrentSource
                 SetStatus(String.Concat(String.Concat(Master.eLang.GetString(1131, "Scanning Source"), ":"), " ", eProgressValue.Message))
+                SetScanStatus(String.Concat(String.Concat(Master.eLang.GetString(1131, "Scanning Source"), ":"), " ", eProgressValue.Message))
             Case Enums.ScannerEventType.PreliminaryTasks
                 SetStatus(Master.eLang.GetString(116, "Performing Preliminary Tasks (Gathering Data)..."))
+                SetScanStatus(Master.eLang.GetString(116, "Performing Preliminary Tasks (Gathering Data)..."))
             Case Enums.ScannerEventType.Refresh_TVShow
                 DataGridView_Row_Update_TVShow(eProgressValue.ID, True)
             Case Enums.ScannerEventType.ScannerEnded
@@ -14545,7 +14597,69 @@ Public Class frmMain
                     DataGridView_FillList_Main(True, True, True)
                     LoadingDone = True
                 End If
+
+                FinishScanDialog()
         End Select
+    End Sub
+
+    ''' <summary>
+    ''' Oeffnet das Fenster, das den Fortschritt des Scans zeigt.
+    ''' </summary>
+    ''' <remarks>Das Fenster blockiert nichts - der Scan laeuft weiter, auch wenn
+    ''' der Nutzer das Fenster schliesst.</remarks>
+    Private Sub ShowScanDialog()
+        Try
+            If _scanDialog IsNot Nothing Then
+                If Not _scanDialog.IsDisposed Then _scanDialog.Close()
+            End If
+
+            _scanDialog = New dlgScanProgress()
+            _scanDialog.Show()
+
+            'Der Fokus soll beim Hauptfenster bleiben
+            Me.Activate()
+        Catch ex As Exception
+            logger.Error(ex, New StackFrame().GetMethod().Name)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Zeigt im Scan-Fenster an, was gerade gemacht wird.
+    ''' </summary>
+    Private Sub SetScanStatus(ByVal text As String)
+        If _scanDialog Is Nothing Then Return
+        If _scanDialog.IsDisposed Then
+            _scanDialog = Nothing
+            Return
+        End If
+
+        _scanDialog.SetStatus(text)
+    End Sub
+
+    ''' <summary>
+    ''' Traegt einen gefundenen Inhalt in das Scan-Fenster ein.
+    ''' </summary>
+    Private Sub AddFoundToScanDialog(ByVal contentType As String, ByVal title As String)
+        If _scanDialog Is Nothing Then Return
+        If _scanDialog.IsDisposed Then
+            _scanDialog = Nothing
+            Return
+        End If
+
+        _scanDialog.AddFound(contentType, title)
+    End Sub
+
+    ''' <summary>
+    ''' Zeigt im Scan-Fenster an, dass der Scan fertig ist.
+    ''' </summary>
+    Private Sub FinishScanDialog()
+        If _scanDialog Is Nothing Then Return
+        If _scanDialog.IsDisposed Then
+            _scanDialog = Nothing
+            Return
+        End If
+
+        _scanDialog.SetFinished()
     End Sub
 
     Private Sub Scraper_CreateList_Movie(ByVal sType As Enums.ScrapeType, ByVal ScrapeOptions As Structures.ScrapeOptions, ByVal ScrapeModifiers As Structures.ScrapeModifiers)
